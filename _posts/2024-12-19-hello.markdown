@@ -1,0 +1,59 @@
+---
+layout: post
+title:  "Hello!"
+date:   2024-12-19 21:45:00 +0000
+categories:
+---
+Hello
+
+This post will fill in a bit of background when it comes to the balloon projects I have been involved in. HAB 2 onwards are with [Isaac](https://github.com/Sheep2259/)
+
+### HAB 1
+
+The first project was a fairly typical high altitude balloon project. 200g balloon, Raspberry Pi Zero and Camera, a [LoRaTracker](https://stuartsprojects.github.io/) gps tracker (thanks Stuart for all those amazing resources!), a polystyrene box and a parachute. Not exactly cheap.
+
+Main problem was getting it back again. Turns out balloons can travel quite far and, when you live with Gatwick and Heathrow to the north and the sea to the south, there aren't a lot of days where you'll be able to launch.
+
+This balloon never made it off the ground.
+
+### HAB 2
+
+This was a 800g balloon and a LilyGo TTGO LoRa gps board. We used the helium LoRaWAN network. You can see the code [here](https://github.com/goshawk22/balloon-tracker). DO NOT USE THIS CODE. It has some quite serious problems.
+
+First of all big balloons are expensive and need a lot of helium which is also expensive, so thank you to Haywards Heath College Science Society for funding it.
+
+Launch when well but it started to go wrong quite soon after it got off the ground. I'll give you a random completely unrelated fun fact now: temperature can be negative (when you measure it in Celsius at least). You can probably guess what went wrong. Something to do with unsigned integers and overflow.
+
+At about 18000m altitude, the GPS stopped working. Yes, we forgot to put the GPS into balloon mode. Stupid mistake. Should not have happened, especially since we were already aware of this.
+
+Did some interesting stuff like trying to estimate location using multilateration. It sort of worked, but also you can just look at the map of hotspots that recieved it and it gives you a rough idea anyway.
+
+This balloon actually floated and made it all the way through France to somewhere around the alps, we weren't sure exactly where.
+
+### Picoballoon 1
+
+We made our own tracker, which had problems but also worked. It was based around the RAK3172. STM32WL is pretty cool. It also used the helium LoRaWAN network.
+
+Some things we learnt: BMP280 does not like being turned on and off and when you use 1M resistors in your voltage divider you also need a capacitor for ADC. Luckily these are all fixable and we were able to modify our PCBs. Surprisingly, the tracker didn't really have any problems after that. We used a 550mAh LiPo battery from a disposable vape we found on the side of the road.
+
+The code for this tracker is [here](https://github.com/goshawk22/picoballoon-tracker)
+
+We used Datacake for the dashboard. Not perfect but easy to use.
+
+The balloon was a 32" Hip Hip Hooray Party balloon from Card Factory. Cost £5 fully inflated. Getting the excess helium out was a pain.
+Launch was successful from the top of Haywards Heath college. Balloon floated for a bit before popping just off the coast of France.
+
+Ascent rate was probably a bit high which caused the pop. Tracker was also quite heavy (around 30g, don't quite remember exactly).
+
+Isaac launching balloon
+![Isaac launching balloon]({{ site.baseurl }}/assets/images/pico-1-isaac-launching-balloon.jpg)
+
+The prediction using the [picoballoon calculator](https://tomastt7.github.io/superpressure/).
+
+![Prediction]({{ site.baseurl }}/assets/images/pico-1-prediction.png)
+
+![A bowl of ice cream](https://example.com/image_1.jpg "This is a delicious bowl of ice cream.")
+
+Data can be found [here](https://raw.githubusercontent.com/goshawk22/balloons/refs/heads/master/data/pico-1.csv)
+
+And that's everything I can think of for now, although I've probably formatted something wrong and will make a few force pushes.
