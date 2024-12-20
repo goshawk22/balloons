@@ -52,8 +52,6 @@ The prediction using the [picoballoon calculator](https://tomastt7.github.io/sup
 
 ![Prediction]({{ site.baseurl }}/assets/images/pico-1-prediction.png)
 
-![A bowl of ice cream](https://example.com/image_1.jpg "This is a delicious bowl of ice cream.")
-
 Data can be found [here](https://raw.githubusercontent.com/goshawk22/balloons/refs/heads/master/data/pico-1.csv)
 
 And that's everything I can think of for now, although I've probably formatted something wrong and will make a few force pushes.

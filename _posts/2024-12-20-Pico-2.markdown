@@ -1,0 +1,27 @@
+---
+layout: post
+title:  "Pico-2"
+date:   2024-12-20 17:30:00 +0000
+categories:
+---
+We reused a left-over board we had from Pico-1. It's good to keep documentation. We learnt that the hard way.
+Once we finally figured out what we did last time and where the latest version of the code was, we tested it overnight in the garden.
+It worked. We used a 550mAh battery from another disposable vape.
+
+We decided to launch on the 19/12/24 as the conditions looked favourable for a southerly flight.
+
+We used a 36" Qualatex foil balloon with some party balloon helium I have had in my shed for almost 5 years.
+Free lift was about 1-2g (we need more accurate scales).
+
+
+We went out into the field ready to launch, checked the wind direction and moved to the west end of the field (the wind was from the west).
+
+Once the tracker got a GPS fix, we waited for the wind to die down for a moment before launching.
+
+The balloon quickly started moving across the field. It wasn't until it was about 40m away that we realised it wasn't going to work. The balloon was still at ground level. As it approached the village hall (we were running after it at this point), it got caught by an updraft and gained quite a lot of altitude quite quickly. Unfortunately, it got stuck at the top of quite a tall oak tree.
+
+It's still there a day later.
+
+![Tree]({{ site.baseurl }}/assets/images/pico-2-tree.jpg)
+
+We will not launch in windy conditions again.
