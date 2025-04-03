@@ -21,7 +21,7 @@
 title: Adam Lawson
 email: dev@goshawk22.uk
 description: >- # this means to ignore newlines until "baseurl:"
-  A blog containing random things like balloons, drones and maths.
+  A blog containing random things about balloons and other cool things.
 baseurl: "/balloons" # the subpath of your site, e.g. /blog
 url: "https://goshawk22.uk" # the base hostname & protocol for your site, e.g. http://example.com
 github_username:  goshawk22
