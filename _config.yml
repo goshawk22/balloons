@@ -26,6 +26,8 @@ baseurl: "/balloons" # the subpath of your site, e.g. /blog
 url: "https://goshawk22.uk" # the base hostname & protocol for your site, e.g. http://example.com
 github_username:  goshawk22
 
+future: true
+
 # Build settings
 theme: minima
 plugins:
