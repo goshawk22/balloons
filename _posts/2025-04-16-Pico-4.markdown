@@ -1,0 +1,21 @@
+---
+layout: post
+title:  "Pico-4"
+date:   2025-04-16 17:30:00 +0000
+categories:
+---
+We used a Raspberry Pi Pico based WSPR tracker. It was powered by a 6 cell solar setup. We decided to use 10m WSPR due to the relative ease of managing the shorter antenna (compared to 20m) and good propagation during the day.
+
+We tested the setup by hanging it out of a window and managed to get a single spot roughly 15km away. Not great performance but at least we know it works.
+
+Payload weighed 17.5g, although this was probably slightly higher after all the added tape etc.
+
+We used a Qualatex 36" silver foil balloon with 2.5g free lift (or at least this was what we measured).
+
+Launch day had about 10mph winds and very sunny. Balloon went up surprisingly easily (turns out if you walk with the balloon it rises much better than just letting go).
+
+First transmission after launch was great, and we got spots as far as Antarctica (DP0GVN). It later struggled with power issues, likely due to cloud. It went dark before reaching float altitude and never woke up in the morning. It's probably somewhere in the channel now.
+
+Possible causes of failure: higher supertemperature in the summer (stronger sun) caused higher internal pressure and popped it, free lift was higher than measured (I don't trust our scales) or balloon had a defect.
+
+You can see the tracking information [here](https://traquito.github.io/search/spots/dashboard/?band=10m&channel=226&callsign=M7GAQ&dtGte=2025-04-7&dtLte=2025-04-09)
