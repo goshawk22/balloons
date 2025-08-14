@@ -22,6 +22,9 @@ While over the Pacific, just off the coast of Canada, the balloon gained around 
 
 This is somewhat similar to when Pico-5 failed. It seems likely that the stretching causes a leak in the seam which then causes it to go down overnight.
 
+![The map]({{ site.baseurl }}/assets/images/pico-7/map.png)
+
+
 ## Future ideas
 
 We will try stretching the balloons before flying to test what pressure the balloon can withstand and ensure that it won't stretch and leak while in the air.
