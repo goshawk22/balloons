@@ -1,0 +1,44 @@
+---
+layout: post
+title:  "Pico-7"
+date:   2025-08-14 16:00:00 +0000
+categories:
+---
+
+## Introduction
+
+Pico 7 was the second flight of the new tracker and included many of the improvements mentioned in the last post. We also used a 20F 3.8V supercap on VIN.
+We also used the same balloon but with a lower free lift at 2g.
+
+## Launch day
+
+The launch day had significant cloud cover again, but it was bright enough to transmit all the way up.
+
+The ascent went smoothly until it reached 7,300m when it started to descend. This was likely due to icing. Luckily it started to rise again at 2,500m and didn't reach the ground. It went dark before reaching float but it woke up the following morning at a float altitude of 11.5km based on the pressure. As it was already over Ukraine there was significant GPS spoofing.
+
+The balloon was consistently fast due to the jet stream, with a maximum speed of 210km/h (likely faster due to the low precision of the calculation and cap on GPS speed in basic telemetry). Over the course of the whole flight it averaged around 150km/h.
+
+While over the Pacific, just off the coast of Canada, the balloon gained around 500m altitude. This was probably due to stretching. The following morning it didn't wake up.
+
+This is somewhat similar to when Pico-5 failed. It seems likely that the stretching causes a leak in the seam which then causes it to go down overnight.
+
+## Future ideas
+
+We will try stretching the balloons before flying to test what pressure the balloon can withstand and ensure that it won't stretch and leak while in the air.
+
+## New records
+
+This balloon is a furthest yet at 16,556km making it the closest yet to achieving circumnavigation.
+
+The [tracking link](https://traquito.github.io/search/spots/dashboard/?band=20m&channel=197&callsign=M7GAQ&dtGte=2025-08-08&slot3MsgDefUserDefined=%2F%2F+Example+Message+Definition+--+modify+then+save%21%0A%0A%7B+%22name%22%3A+%22Pressure%22%2C+++++%22unit%22%3A+%22hPa%22%2C+++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A+1100%2C++++%22stepSize%22%3A+1+++%7D%2C%0A%7B+%22name%22%3A+%22Loc%22%2C++++++%22unit%22%3A+%22Loc%22%2C++++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A++++99%2C++++%22stepSize%22%3A++1+++%7D%2C%0A%7B+%22name%22%3A+%22Uptime%22%2C++++++%22unit%22%3A+%22Min%22%2C++++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A++++1000%2C++++%22stepSize%22%3A++10+++%7D%2C%0A%7B+%22name%22%3A+%22Sats%22%2C++++++%22unit%22%3A+%22sats%22%2C++++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A++++40%2C++++%22stepSize%22%3A++1+++%7D%2C) for the balloon.
+
+## Pictures
+
+![The tracker before flight]({{ site.baseurl }}/assets/images/pico-7/IMG_20250808_115017_1.jpg)
+*The tracker before flight*
+
+![The supercapacitor and 100uF capacitors]({{ site.baseurl }}/assets/images/pico-7/IMG_20250808_115028_1.jpg)
+*The supercapacitor and 100uF capacitors*
+
+![The stone]({{ site.baseurl }}/assets/images/pico-7/IMG_20250808_115051_1.jpg)
+*The stone we used to reduce free lift after overfilling the balloon*
