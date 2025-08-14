@@ -63,6 +63,10 @@ let last_data_view_scroll_pos = 0;
 
 let is_mobile;  // running on a mobile device
 
+// Notification support
+let notifications_enabled = false;
+let notification_permission_requested = false;
+
 // WSPR band info. For each band, the value is
 // [U4B starting minute offset, WSPR Live band id].
 const kWSPRBandInfo = {
@@ -87,7 +91,7 @@ const kWSPRBandInfo = {
 
 // Used for spot decoding
 const kWSPRPowers = [0, 3, 7, 10, 13, 17, 20, 23, 27, 30, 33, 37, 40,
-    43, 47, 50, 53, 57, 60];
+  43, 47, 50, 53, 57, 60];
 
 // Parses a UTC timestamp string like '2025-07-15 12:00:00' to a Date() object
 function parseTimestamp(ts_str) {
@@ -107,8 +111,8 @@ function parseDate(date_str) {
   const day = parseInt(match[3]);
   const date = new Date(Date.UTC(year, month, day));
   if (date.getUTCFullYear() !== year ||
-      date.getUTCMonth() !== month ||
-      date.getUTCDate() !== day) return null;
+    date.getUTCMonth() !== month ||
+    date.getUTCDate() !== day) return null;
   return date;
 }
 
@@ -123,7 +127,7 @@ function getUrlParameter(name) {
   const match = regex.exec(location.search);
   if (!match) return null;
   return match[2] != undefined ?
-      decodeURIComponent(match[2].replace(/\+/g, ' ')) : '';
+    decodeURIComponent(match[2].replace(/\+/g, ' ')) : '';
 }
 
 // Parses and validates input params, returning them as a dictionary.
@@ -147,8 +151,10 @@ function parseParams() {
       // generic2 (G): unspecified protocol, type 2 + type 3 message combo
       // zachtek1 (z): older Zachtek protocol, single type 1 message
       // zachtek2 (Z): newer Zachtek protocol, type 2 + type 3 message combo
-      tracker = { 'g': 'generic1', 'G': 'generic2',
-                  'z': 'zachtek1', 'Z': 'zachtek2' }[raw_ch[0]];
+      tracker = {
+        'g': 'generic1', 'G': 'generic2',
+        'z': 'zachtek1', 'Z': 'zachtek2'
+      }[raw_ch[0]];
       if (!/^[02468]$/.test(raw_ch.slice(1))) {
         alert('Starting minute should be one of 0, 2, 4, 6 or 8');
         return null;
@@ -164,8 +170,8 @@ function parseParams() {
       }
       // Convert channel to an equivalent u4b one
       ch = ['0', '1', 'Q'].indexOf(raw_ch[1]) * 200 +
-          (raw_ch[2] - '0') * 20 +
-          ((raw_ch[3] - '0' - starting_minute_offset) / 2 + 5) % 5;
+        (raw_ch[2] - '0') * 20 +
+        ((raw_ch[3] - '0' - starting_minute_offset) / 2 + 5) % 5;
       tracker = raw_ch[0].toUpperCase() == 'W' ? 'wb8elk' : 'u4b';
     } else {
       alert('Unknown tracker type: ' + raw_ch[0]);
@@ -185,8 +191,8 @@ function parseParams() {
     ch = Number(match[1]);
     fetch_et = match[2] ? (match[3] ? Number(match[3]) : 1) : null;
     if (ch < 0 || ch > 599 ||
-        (fetch_et != null &&
-         (fetch_et < 0 || fetch_et > 3))) {
+      (fetch_et != null &&
+        (fetch_et < 0 || fetch_et > 3))) {
       alert('Invalid U4B channel');
       return null;
     }
@@ -194,12 +200,14 @@ function parseParams() {
   }
 
   const start_date = parseDate(
-      document.getElementById('start_date').value);
-  const end_date = end_date_param ?
-      parseDate(end_date_param) : new Date();
+    document.getElementById('start_date').value);
+  const form_end_date = document.getElementById('end_date').value;
+  const end_date = form_end_date ?
+    parseDate(form_end_date) :
+    (end_date_param ? parseDate(end_date_param) : new Date());
   const units = (units_param == null) ?
-      (localStorage.getItem('units') == 1 ? 1 : 0) :
-      (units_param == 'imperial' ? 1 : 0);
+    (localStorage.getItem('units') == 1 ? 1 : 0) :
+    (units_param == 'imperial' ? 1 : 0);
   const detail = localStorage.getItem('detail') == 1 ? 1 : 0;
 
   let cs_regex;
@@ -231,8 +239,8 @@ function parseParams() {
 
   if (end_date - start_date > 366 * 86400 * 1000) {
     alert('Start date cannot be more than a year before the end date. ' +
-          'For past flights, end date can be specified with the ' +
-          '&end_date=YYYY-mm-dd URL param');
+      'For past flights, end date can be specified with the ' +
+      '&end_date=YYYY-mm-dd URL param');
     return null;
   }
 
@@ -243,10 +251,12 @@ function parseParams() {
   }
 
   // Successful validation
-  return { 'cs': cs, 'ch': ch, 'band': band, 'tracker': tracker,
-           'start_date': start_date, 'end_date': end_date,
-           'fetch_et' : fetch_et, 'units' : units,
-           'detail': detail, 'et_spec': et_spec };
+  return {
+    'cs': cs, 'ch': ch, 'band': band, 'tracker': tracker,
+    'start_date': start_date, 'end_date': end_date,
+    'fetch_et': fetch_et, 'units': units,
+    'detail': detail, 'et_spec': et_spec
+  };
 }
 
 // Returns TX minute for given slot in the U4B protocol
@@ -274,8 +284,8 @@ function createQueryDateRange(incremental_update = false) {
 // Do not change this query unless you understand the impact
 // on wpsr.live servers.
 function createWSPRLiveQuery(
-    fetch_q01 = false, slots = [0],
-    incremental_update = false) {
+  fetch_q01 = false, slots = [0],
+  incremental_update = false) {
   let cs_clause;
   if (fetch_q01) {
     // Fetching from the Q/0/1 callsign space
@@ -283,7 +293,7 @@ function createWSPRLiveQuery(
       const cs1 = ['0', '1', 'Q'][Math.floor(params.ch / 200)];
       const cs3 = Math.floor(params.ch / 20) % 10;
       cs_clause = `substr(tx_sign, 1, 1) = '${cs1}' AND ` +
-                  `substr(tx_sign, 3, 1) = '${cs3}'`;
+        `substr(tx_sign, 3, 1) = '${cs3}'`;
     } else {
       throw new Error('Internal error');
     }
@@ -294,7 +304,7 @@ function createWSPRLiveQuery(
   const [_, wspr_live_band] = kWSPRBandInfo[params.band];
   const slot_minutes = slots.map(slot => getU4BSlotMinute(slot));
   const slot_clause = slot_minutes.length < 5 ?
-      `toMinute(time) % 10 IN (${slot_minutes})` : 'true';
+    `toMinute(time) % 10 IN (${slot_minutes})` : 'true';
   const date_range = createQueryDateRange(incremental_update);
   return `
     SELECT  /* wsprtv.github.io */
@@ -327,14 +337,69 @@ async function runQuery(query) {
 function importWSPRLiveData(data) {
   for (let i = 0; i < data.length; i++) {
     let row = data[i];
-    data[i] = { 'ts': parseTimestamp(row[0]),
-                'cs': row[1], 'grid': row[2], 'power': row[3],
-                'rx': row[4].map(
-                    rx => ({ 'cs': rx[0], 'grid': rx[1],
-                            'freq': rx[2], 'snr': rx[3] }))
-                    .sort((r1, r2) => (r1.cs > r2.cs) - (r1.cs < r2.cs))};
+    data[i] = {
+      'ts': parseTimestamp(row[0]),
+      'cs': row[1], 'grid': row[2], 'power': row[3],
+      'rx': row[4].map(
+        rx => ({
+          'cs': rx[0], 'grid': rx[1],
+          'freq': rx[2], 'snr': rx[3]
+        }))
+        .sort((r1, r2) => (r1.cs > r2.cs) - (r1.cs < r2.cs))
+    };
   }
   return data;
+}
+
+// Notification functions
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) {
+    console.log('This browser does not support notifications');
+    return false;
+  }
+
+  if (Notification.permission === 'granted') {
+    notifications_enabled = true;
+    return true;
+  }
+
+  if (Notification.permission === 'denied') {
+    return false;
+  }
+
+  // Request permission
+  const permission = await Notification.requestPermission();
+  notifications_enabled = (permission === 'granted');
+  return notifications_enabled;
+}
+
+function showNewPacketNotification(new_count, callsign) {
+  if (!notifications_enabled || !('Notification' in window)) {
+    return;
+  }
+
+  const title = `New WSPR Packet${new_count > 1 ? 's' : ''}`;
+  const body = `${new_count} new packet${new_count > 1 ? 's' : ''} received from ${callsign}`;
+
+  const notification = new Notification(title, {
+    body: body,
+    icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMTMuMDkgOC4yNkwyMCA5TDEzLjA5IDE1Ljc0TDEyIDIyTDEwLjkxIDE1Ljc0TDQgOUwxMC45MSA4LjI2TDEyIDJaIiBmaWxsPSIjNDI4NUY0Ii8+Cjwvc3ZnPgo=',
+    badge: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDJMMTMuMDkgOC4yNkwyMCA5TDEzLjA5IDE1Ljc0TDEyIDIyTDEwLjkxIDE1Ljc0TDQgOUwxMC45MSA4LjI2TDEyIDJaIiBmaWxsPSIjNDI4NUY0Ii8+Cjwvc3ZnPgo=',
+    tag: 'wspr-packet',
+    requireInteraction: false,
+    silent: false
+  });
+
+  // Auto-close after 4 seconds
+  setTimeout(() => {
+    notification.close();
+  }, 4000);
+
+  // Click handler to focus the window
+  notification.onclick = function () {
+    window.focus();
+    notification.close();
+  };
 }
 
 // Compares rows by (ts, cs)
@@ -345,17 +410,20 @@ function compareDataRows(r1, r2) {
 // Both old_data and new_data are sorted by (row.ts, row.cs).
 // Extends old_data with items in new_data whose keys are not
 // present in old_data and returns the result.
+// Returns {data: merged_data, new_count: number_of_new_items}
 function mergeData(old_data, new_data) {
   let result = [];
   let i = 0;  // index in old_data
   let j = 0;  // index in new_data
+  let new_count = 0;  // count of truly new items
 
   while (i < old_data.length && j < new_data.length) {
     let cmp = compareDataRows(old_data[i], new_data[j]);
-    if  (cmp < 0) {
+    if (cmp < 0) {
       result.push(old_data[i++]);
     } else if (cmp > 0) {
       result.push(new_data[j++]);
+      new_count++;
     } else {
       // Prefer new_data -- it is more complete
       result.push(new_data[j++]);
@@ -365,9 +433,12 @@ function mergeData(old_data, new_data) {
 
   // Append remaining elements, if any
   while (i < old_data.length) result.push(old_data[i++]);
-  while (j < new_data.length) result.push(new_data[j++]);
+  while (j < new_data.length) {
+    result.push(new_data[j++]);
+    new_count++;
+  }
 
-  return result;
+  return { data: result, new_count: new_count };
 }
 
 // Given two sets of sorted RX reports, check if any callsign
@@ -375,7 +446,7 @@ function mergeData(old_data, new_data) {
 function findCoreceiver(rx1, rx2) {
   let i = 0;  // index in rx1
   let j = 0;  // index in rx2
-  for (;;) {
+  for (; ;) {
     if (i >= rx1.length || j >= rx2.length) return false;
     const r1 = rx1[i];
     const r2 = rx2[j];
@@ -415,7 +486,7 @@ function matchTelemetry(data) {
         spots.push(last_spot);
       }
     } else if (last_spot && row.ts - last_spot.slots[0].ts < 10 * 60 * 1000 &&
-               !last_spot.slots[slot]) {
+      !last_spot.slots[slot]) {
       // Same TX sequence as last spot, try to attach the row
       if (params.tracker == 'zachtek2' || params.tracker == 'generic2') {
         // Always a match
@@ -428,7 +499,7 @@ function matchTelemetry(data) {
         // U4B frequency matching
         for (let j = 0; j < slot; j++) {
           if (last_spot.slots[j] &&
-              findCoreceiver(last_spot.slots[j].rx, row.rx)) {
+            findCoreceiver(last_spot.slots[j].rx, row.rx)) {
             last_spot.slots[slot] = row;
             break;
           }
@@ -439,23 +510,64 @@ function matchTelemetry(data) {
   return spots;
 }
 
-// Returns the lat / lon of a Maidenhead grid at its center
+// Convert a Maidenhead grid reference of arbitrary previcision to lat/long.
 function maidenheadToLatLon(grid) {
-  let A = 'A'.charCodeAt(0);
-  let a = 'a'.charCodeAt(0);
-  let zero = '0'.charCodeAt(0);
-  let lon = (grid.charCodeAt(0) - A) * 20 - 180;
-  let lat = (grid.charCodeAt(1) - A) * 10 - 90;
-  lon += (grid.charCodeAt(2) - zero) * 2;
-  lat += (grid.charCodeAt(3) - zero) * 1;
+  // Make sure we are in upper case so our maths works. Case is arbitrary for Maidenhead references
+  grid = grid.toUpperCase();
 
-  if (grid.length == 6) {
-    lon += (grid.charCodeAt(4) - a) / 12 + 1 / 24;
-    lat += (grid.charCodeAt(5) - a) / 24 + 1 / 48;
-  } else {
-    lon += 1;
-    lat += 0.5;
+  // Return null if our Maidenhead string is invalid or too short
+  let len = grid.length;
+  if (len <= 0 || (len % 2) !== 0) {
+    return null;
   }
+
+  let lat = 0.0; // aggregated latitude
+  let lon = 0.0; // aggregated longitude
+  let latCellSize = 10; // Size in degrees latitude of the current cell. Starts at 20 and gets smaller as the calculation progresses
+  let lonCellSize = 20; // Size in degrees longitude of the current cell. Starts at 20 and gets smaller as the calculation progresses
+  let latCellNo; // grid latitude cell number this time
+  let lonCellNo; // grid longitude cell number this time
+
+  // Iterate through blocks (two-character sections)
+  for (let block = 0; block * 2 < len; block += 1) {
+    if (block % 2 === 0) {
+      // Letters in this block
+      lonCellNo = grid.charCodeAt(block * 2) - 'A'.charCodeAt(0);
+      latCellNo = grid.charCodeAt(block * 2 + 1) - 'A'.charCodeAt(0);
+    } else {
+      // Numbers in this block
+      lonCellNo = parseInt(grid.charAt(block * 2));
+      latCellNo = parseInt(grid.charAt(block * 2 + 1));
+    }
+
+    // Aggregate the angles
+    lat += latCellNo * latCellSize;
+    lon += lonCellNo * lonCellSize;
+
+    // Reduce the cell size for the next block, unless we are on the last cell. If we are on the last cell, instead
+    // move the position into the middle of the cell rather than its south-west corner.
+    if (block * 2 < len - 2) {
+      // Still have more work to do, so reduce the cell size
+      if (block % 2 === 0) {
+        // Just dealt with letters, next block will be numbers so cells will be 1/10 the current size
+        latCellSize = latCellSize / 10.0;
+        lonCellSize = lonCellSize / 10.0;
+      } else {
+        // Just dealt with numbers, next block will be letters so cells will be 1/24 the current size
+        latCellSize = latCellSize / 24.0;
+        lonCellSize = lonCellSize / 24.0;
+      }
+    } else {
+      // This is the last block, so move the marker to the middle.
+      lat += latCellSize / 2;
+      lon += lonCellSize / 2;
+    }
+  }
+
+  // Offset back to (-180, -90) where the grid starts
+  lon -= 180.0;
+  lat -= 90.0;
+
   return [lat, lon];
 }
 
@@ -480,11 +592,42 @@ function charToNum(c, alphanum = false) {
 // callsign and (grid, power) respectively
 function extractU4BQ01Payload(p) {
   let m = ((((charToNum(p.cs[1], true) * 26 + charToNum(p.cs[3])) * 26) +
-           charToNum(p.cs[4]))) * 26 + charToNum(p.cs[5]);
+    charToNum(p.cs[4]))) * 26 + charToNum(p.cs[5]);
   let n = ((((charToNum(p.grid[0]) * 18 + charToNum(p.grid[1])) * 10) +
-      charToNum(p.grid[2], true)) * 10 + charToNum(p.grid[3], true)) * 19 +
-      kWSPRPowers.indexOf(p.power);
+    charToNum(p.grid[2], true)) * 10 + charToNum(p.grid[3], true)) * 19 +
+    kWSPRPowers.indexOf(p.power);
   return [m, n];
+}
+
+// Decode enhanced grid square from extended telemetry location value
+function decodeEnhancedGridFromET(locValue, baseGrid) {
+  if (locValue === undefined || locValue === null || !baseGrid) return null;
+
+  // The Loc field contains a numeric value representing the 7th and 8th characters
+  // of an 8-character grid square (grid78)
+
+  let value = Math.floor(locValue);
+  if (value < 0 || value >= 100) return null; // 10*10 = 100 possible combinations (0-9 each)
+
+  // Convert numeric value to 7th and 8th grid characters
+  // Grid characters 7&8 are numbers 0-9 representing extended square precision
+  let char8 = value % 10;  // 8th character (latitude extended square)
+  let char7 = Math.floor(value / 10) % 10;  // 7th character (longitude extended square)
+
+  // Convert to number characters
+  let grid7 = char7.toString();  // 0-9
+  let grid8 = char8.toString();  // 0-9
+
+  // Build 8-character grid square by adding the 7th and 8th characters
+  // to the existing 6-character grid
+  // Only add grid78 if we already have a proper 6-character grid (grid56 present)
+  if (baseGrid.length >= 6) {
+    return baseGrid + grid7 + grid8;
+  }
+
+  // Don't add grid78 if we only have a 4-character grid
+  // (grid56 characters haven't been added yet)
+  return null;
 }
 
 function processU4BSlot1Message(spot) {
@@ -502,7 +645,7 @@ function processU4BSlot1Message(spot) {
   }
   let p = Math.floor(m / 1068);
   let grid = spot.grid + String.fromCharCode(97 + Math.floor(p / 24)) +
-      String.fromCharCode(97 + (p % 24));
+    String.fromCharCode(97 + (p % 24));
   let altitude = (m % 1068) * 20;
 
   if (!(Math.floor(n / 2) % 2)) {
@@ -539,12 +682,12 @@ function processWB8ELKSlot1Message(spot) {
   spot.altitude += 60 * kWSPRPowers.indexOf(spot.slots[1].power);
   let grid = spot.slots[1].grid.slice(0, 4);
   if (spot.grid != grid ||
-      !/^[A-X][A-X]$/.test(spot.slots[1].cs.slice(4))) {
+    !/^[A-X][A-X]$/.test(spot.slots[1].cs.slice(4))) {
     return false;
   }
-  spot.grid += spot.slots[1].cs.slice(4,6).toLowerCase();
+  spot.grid += spot.slots[1].cs.slice(4, 6).toLowerCase();
   spot.voltage =
-      3.3 + (spot.slots[1].cs.charCodeAt(3) - 'A'.charCodeAt(0)) * 0.1;
+    3.3 + (spot.slots[1].cs.charCodeAt(3) - 'A'.charCodeAt(0)) * 0.1;
   return true;
 }
 
@@ -559,7 +702,7 @@ function decodeSpots() {
 function decodeSpot(spot) {
   spot.ts = spot.slots[0].ts;
   spot.grid = (params.tracker == 'unknown') ?
-      spot.slots[0].grid : spot.slots[0].grid.slice(0, 4);
+    spot.slots[0].grid : spot.slots[0].grid.slice(0, 4);
   if (params.tracker == 'wb8elk') {
     spot.altitude = 1000 * kWSPRPowers.indexOf(spot.slots[0].power);
     if (spot.slots[1]) {
@@ -599,7 +742,18 @@ function decodeSpot(spot) {
     }
   }
   [spot.lat, spot.lon] = maidenheadToLatLon(spot.grid);
-  if (spot.raw_et) decodeExtendedTelemetry(spot);
+  if (spot.raw_et) {
+    decodeExtendedTelemetry(spot);
+    // Use enhanced location from extended telemetry if available
+    // The "Loc" field is at index 1 in the extended telemetry data
+    if (spot.et && spot.et[1] !== undefined) {
+      const enhancedGrid = decodeEnhancedGridFromET(spot.et[1], spot.grid);
+      if (enhancedGrid) {
+        spot.grid = enhancedGrid;
+        [spot.lat, spot.lon] = maidenheadToLatLon(enhancedGrid);
+      }
+    }
+  }
   return true;
 }
 
@@ -617,12 +771,12 @@ function decodeExtendedTelemetry(spot) {
       let matched = true;
       for (let filter of filters) {
         if (filter.length == 4 && filter[0] == 't' &&
-            Math.trunc(ts_seq / filter[1]) % filter[2] != filter[3]) {
+          Math.trunc(ts_seq / filter[1]) % filter[2] != filter[3]) {
           matched = false;
           break;
         }
         if (filter.length == 2 && filter[0] == 's' &&
-            filter[1] != i) {
+          filter[1] != i) {
           matched = false;
           break;
         }
@@ -638,7 +792,7 @@ function decodeExtendedTelemetry(spot) {
         // Extract the values
         for (const [divisor, modulus, offset, slope] of extractors) {
           et[index++] = offset +
-              (Math.trunc(raw_et / divisor) % modulus) * slope;
+            (Math.trunc(raw_et / divisor) % modulus) * slope;
         }
         break;  // do not try other decoders
       } else {
@@ -690,7 +844,7 @@ function formatAltitude(m, append_units = true) {
   const v = getAltitudeInCurrentUnits(m);
   const [units, resolution] = kUnitInfo['altitude'][params.units];
   return (resolution ? v.toFixed(resolution) : v) +
-      (append_units ? units : '');
+    (append_units ? units : '');
 }
 
 function formatTemperature(c, append_units = true) {
@@ -705,28 +859,28 @@ function formatVoltage(v, append_units = true) {
 
 function getDistanceInCurrentUnits(m) {
   return (params.units == 0) ?
-      Math.round(m / 1000) :
-      Math.round(m * 0.621371 / 1000);
+    Math.round(m / 1000) :
+    Math.round(m * 0.621371 / 1000);
 }
 
 function getAltitudeInCurrentUnits(m) {
   return (params.units == 0) ?
-      m / 1000 : Math.round(m * 3.28084 / 10) * 10;
+    m / 1000 : Math.round(m * 3.28084 / 10) * 10;
 }
 
 function getSpeedInCurrentUnits(kph) {
   return (params.units == 0) ?
-       Math.round(kph) : Math.round(kph * 0.621371);
+    Math.round(kph) : Math.round(kph * 0.621371);
 }
 
 function getVSpeedInCurrentUnits(mpm) {
   return (params.units == 0) ?
-       Math.round(mpm) : Math.round(mpm * 3.28084);
+    Math.round(mpm) : Math.round(mpm * 3.28084);
 }
 
 function getTemperatureInCurrentUnits(c) {
   return (params.units == 0) ?
-      Math.round(c) : Math.round(c * 9 / 5 + 32);
+    Math.round(c) : Math.round(c * 9 / 5 + 32);
 }
 
 function getSunElevation(ts, lat, lon) {
@@ -760,7 +914,7 @@ function getRXStats(spot) {
   }
   const lat_lon = L.latLng([spot.lat, spot.lon]);
   const max_rx_dist = Math.max(...Object.keys(grids).map(grid =>
-      lat_lon.distanceTo(maidenheadToLatLon(grid))));
+    lat_lon.distanceTo(maidenheadToLatLon(grid))));
   return [Object.keys(cs).length, max_rx_dist, max_snr];
 }
 
@@ -783,13 +937,8 @@ const kUnitInfo = {
 function toggleUnits() {
   params.units ^= 1;
 
-  if (document.getElementById('map').style.display == 'block') {
-    // Redraw the track using new units
-    displayTrack();
-  } else {
-    // Redraw the data view
-    showDataView();
-  }
+  // Always redraw both the track and data view since they're both visible
+  displayTrack();
 
   // Remember units preference
   localStorage.setItem('units', params.units);
@@ -803,7 +952,7 @@ function computeDistance(markers) {
   let last_marker = markers[0];
   for (let i = 1; i < markers.length; i++) {
     const segment_dist = markers[i].getLatLng().distanceTo(
-        last_marker.getLatLng());
+      last_marker.getLatLng());
     if (segment_dist > 100000 || i == markers.length - 1) {
       dist += segment_dist;
       last_marker = markers[i];
@@ -826,7 +975,6 @@ function clearTrack() {
   document.getElementById('spot_info').style.display = 'none';
   document.getElementById('synopsis').innerHTML = '';
   document.getElementById('update_countdown').innerHTML = '';
-  document.getElementById('show_data_button').style.display = 'none';
   document.getElementById('aux_info').style.display = 'none';
   if (selected_marker) {
     hideMarkerRXInfo(selected_marker);
@@ -850,9 +998,9 @@ function displayTrack() {
     if (spot.lat == undefined || spot.lon == undefined) continue;
 
     if (params.tracker != 'unknown' && last_marker &&
-        last_marker.getLatLng().distanceTo(
-            [spot.lat, spot.lon]) / 1000 >
-        300 * Math.max(1800, (spot.ts - last_marker.spot.ts) / 1000) / 3600) {
+      last_marker.getLatLng().distanceTo(
+        [spot.lat, spot.lon]) / 1000 >
+      300 * Math.max(1800, (spot.ts - last_marker.spot.ts) / 1000) / 3600) {
       // Spot is too far from previous marker to be feasible (over 300 km/h
       // speed needed to connect). Ignore.
       if (debug > 0) console.log('Filtering out an impossible spot');
@@ -863,27 +1011,47 @@ function displayTrack() {
     if (spot.grid.length < 6) {
       // Grid4 spot
       if (params.tracker == 'unknown' || !last_marker ||
-          (spot.ts - last_marker.spot.ts > 2 * 3600 * 1000) ||
-          (last_marker.getLatLng().distanceTo(
-               [spot.lat, spot.lon]) > 200000)) {
+        (spot.ts - last_marker.spot.ts > 2 * 3600 * 1000) ||
+        (last_marker.getLatLng().distanceTo(
+          [spot.lat, spot.lon]) > 200000)) {
         marker = L.circleMarker([spot.lat, spot.lon],
-            { radius: 5, color: 'black', fillColor: 'white', weight: 1,
-              stroke: true, fillOpacity: 1 });
+          {
+            radius: 5, color: 'black', fillColor: 'white', weight: 1,
+            stroke: true, fillOpacity: 1
+          });
       }
-    } else {
+    } else if (spot.grid.length == 6) {
       // Grid6 spot
       if (params.tracker != 'unknown' &&
-          last_marker && last_marker.spot.grid.length < 6 &&
-          (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
-          (last_marker.getLatLng().distanceTo(
-               [spot.lat, spot.lon]) < 200000)) {
+        last_marker && last_marker.spot.grid.length < 6 &&
+        (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
+        (last_marker.getLatLng().distanceTo(
+          [spot.lat, spot.lon]) < 200000)) {
         // Remove last grid4 marker
         marker_group.removeLayer(last_marker);
         markers.pop();
       }
       marker = L.circleMarker([spot.lat, spot.lon],
-          { radius: 7, color: 'black', fillColor: '#add8e6', weight: 1,
-            stroke: true, fillOpacity: 1 });
+        {
+          radius: 7, color: 'black', fillColor: '#add8e6', weight: 1,
+          stroke: true, fillOpacity: 1
+        });
+    } else if (spot.grid.length == 8) {
+      // Grid8 spot - only display if we already have a grid6 marker
+      if (params.tracker != 'unknown' &&
+        last_marker && last_marker.spot.grid.length < 8 &&
+        (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
+        (last_marker.getLatLng().distanceTo(
+          [spot.lat, spot.lon]) < 200000)) {
+        // Remove last lower-precision marker
+        marker_group.removeLayer(last_marker);
+        markers.pop();
+      }
+      marker = L.circleMarker([spot.lat, spot.lon],
+        {
+          radius: 8, color: 'black', fillColor: '#87ceeb', weight: 1,
+          stroke: true, fillOpacity: 1
+        });
     }
     if (marker) {
       last_marker = marker;
@@ -910,28 +1078,28 @@ function displayTrack() {
     if (params.tracker != 'unknown') {
       // Distance is a clickable link to switch units
       const dist = computeDistance(markers);
-      synopsis.innerHTML += '<br>Distance: <b>' +
-          '<a href="#" id="unit_switch_link" title="Click to change units" ' +
-          'onclick="toggleUnits(); event.preventDefault()">' +
-          formatDistance(dist) + '</a></b>';
+      synopsis.innerHTML += ' • Distance: <b>' +
+        '<a href="#" id="unit_switch_link" title="Click to change units" ' +
+        'onclick="toggleUnits(); event.preventDefault()">' +
+        formatDistance(dist) + '</a></b>';
     }
-    synopsis.innerHTML += `<br><b>${markers.length}</b> map spot` +
-        ((markers.length > 1) ? 's' : '');
+    synopsis.innerHTML += ` • <b>${markers.length}</b> map spot` +
+      ((markers.length > 1) ? 's' : '');
     if ('altitude' in last_spot) {
-      synopsis.innerHTML += '<br>Last altitude: <b>' +
-          formatAltitude(last_spot.altitude) + '</b>';
+      synopsis.innerHTML += ' • Last altitude: <b>' +
+        formatAltitude(last_spot.altitude) + '</b>';
     }
     if ('speed' in last_spot) {
       synopsis.innerHTML +=
-          `<br>Last speed: <b>${formatSpeed(last_spot.speed)}</b>`;
+        ` • Last speed: <b>${formatSpeed(last_spot.speed)}</b>`;
     }
     if ('voltage' in last_spot) {
       synopsis.innerHTML +=
-          `<br>Last voltage: <b>${formatVoltage(last_spot.voltage)}</b>`;
+        ` • Last voltage: <b>${formatVoltage(last_spot.voltage)}</b>`;
     }
     const last_age = formatDuration(new Date(), last_spot.ts);
-    synopsis.innerHTML += `<br><b>(<span id='last_age'>${last_age}` +
-        `</span> ago)</b>`;
+    synopsis.innerHTML += ` • <b>(<span id='last_age'>${last_age}` +
+      `</span> ago)</b>`;
   } else {
     synopsis.innerHTML = '<b>0</b> spots';
   }
@@ -949,6 +1117,7 @@ function displayTrack() {
     let lon1 = markers[i - 1].getLatLng().lng;
     let lat2 = markers[i].getLatLng().lat;
     let lon2 = markers[i].getLatLng().lng;
+
     if (lon1 < lon2) {
       // Reorder so that lon1 is east of lon2 when crossing the antimeridian
       [[lat1, lon1], [lat2, lon2]] = [[lat2, lon2], [lat1, lon1]];
@@ -960,11 +1129,11 @@ function displayTrack() {
       // work, the latitude at which the segment crosses antimeridian needs to
       // be calculated.
       let lat180 = lat1 + (lat2 - lat1) * (180 - lon1) /
-          (lon2 - lon1 + 360);
+        (lon2 - lon1 + 360);
       L.polyline([[lat1, lon1], [lat180, 180]],
-          { color: '#00cc00' }).addTo(segment_group);
+        { color: '#00cc00' }).addTo(segment_group);
       L.polyline([[lat2, lon2], [lat180, -180]],
-          { color: '#00cc00' }).addTo(segment_group);
+        { color: '#00cc00' }).addTo(segment_group);
     } else {
       // Regular segment, no antimeridian crossing
       L.polyline(
@@ -976,10 +1145,9 @@ function displayTrack() {
   segment_group.addTo(map);
   marker_group.addTo(map);
 
-  if (spots) {
-    // Display the data view button if the map is visible
-    document.getElementById('show_data_button').style.display =
-        document.getElementById('map').style.display;
+  if (spots && spots.length > 0) {
+    // Automatically show the data view after displaying the track
+    showDataView();
   }
 
   marker_group.on('mouseover', onMarkerMouseover);
@@ -1022,20 +1190,22 @@ function onMarkerClick(e) {
     spot.slots[0].rx.forEach(r => {
       let rx_lat_lon = maidenheadToLatLon(r.grid);
       let rx_marker = L.circleMarker(
-          rx_lat_lon,
-          { radius: 6, color: 'black',
-            fillColor: 'yellow', weight: 1, stroke: true,
-            fillOpacity: 1 }).addTo(map);
-      rx_marker.on('click', function(e) {
+        rx_lat_lon,
+        {
+          radius: 6, color: 'black',
+          fillColor: 'yellow', weight: 1, stroke: true,
+          fillOpacity: 1
+        }).addTo(map);
+      rx_marker.on('click', function (e) {
         L.DomEvent.stopPropagation(e);
       });
       let dist = marker.getLatLng().distanceTo(rx_lat_lon);
       rx_marker.bindTooltip(
-          `${r.cs} ${formatDistance(dist)} ${r.snr} dBm`,
-          { direction: 'top', opacity: 0.8 });
+        `${r.cs} ${formatDistance(dist)} ${r.snr} dBm`,
+        { direction: 'top', opacity: 0.8 });
       marker.rx_markers.push(rx_marker);
       let segment = L.polyline([marker.getLatLng(), rx_lat_lon],
-          { weight: 1.4, color: 'blue' }).addTo(map).bringToBack();
+        { weight: 1.4, color: 'blue' }).addTo(map).bringToBack();
       marker.rx_segments.push(segment);
     });
   }
@@ -1097,11 +1267,13 @@ function displaySpotInfo(marker, point) {
     const slot = spot.slots[i];
     if (slot && !slot.is_invalid) {
       spot_info.innerHTML +=
-          `<br>${i}: ${slot.cs} ${slot.grid} ${slot.power}`;
+        `<br>${i}: ${slot.cs} ${slot.grid} ${slot.power}`;
     }
   }
   spot_info.innerHTML +=
-      `<br>${spot.lat.toFixed(2)}°, ${spot.lon.toFixed(2)}°`;
+    `<br>Grid: ${spot.grid || 'Unknown'}`;
+  spot_info.innerHTML +=
+    `<br>Coords: ${spot.lat.toFixed(6)}°, ${spot.lon.toFixed(6)}°`;
   if ('altitude' in spot) {
     spot_info.innerHTML += '<br>Altitude: ' + formatAltitude(spot.altitude);
   }
@@ -1117,7 +1289,7 @@ function displaySpotInfo(marker, point) {
   if (spot.raw_et) {
     // Display opaque extended telemetry
     spot.raw_et.forEach((v, i) =>
-        spot_info.innerHTML += `<br>Raw ET${i}: ${v}`);
+      spot_info.innerHTML += `<br>Raw ET${i}: ${v}`);
   }
   if (spot.et) {
     // Display decoded extended telemetry
@@ -1125,7 +1297,7 @@ function displaySpotInfo(marker, point) {
     spot.et.forEach((v, i) => {
       if (count++ < 8) {
         const [label, long_label, units, formatter] =
-            getExtendedTelemetryAttributes(i);
+          getExtendedTelemetryAttributes(i);
         spot_info.innerHTML += `<br>${label}: ${formatter(v, true)}`
       }
     });
@@ -1134,7 +1306,7 @@ function displaySpotInfo(marker, point) {
   spot_info.innerHTML += `<br>Sun elevation: ${sun_elev}&deg;`
   const [num_rx, max_rx_dist, max_snr] = getRXStats(spot);
   spot_info.innerHTML += `<br> ${num_rx} report` +
-        ((num_rx == 1) ? '' : 's');
+    ((num_rx == 1) ? '' : 's');
   spot_info.innerHTML += ` | ${max_snr} dBm`;
   spot_info.innerHTML += `<br> ${formatDistance(max_rx_dist)}`;
 
@@ -1144,12 +1316,12 @@ function displaySpotInfo(marker, point) {
     const dl = d / (111320 * Math.cos(spot.lat * 0.01745));
     const dt = Math.round((spot.altitude ** 2 + d ** 2) ** 0.5);
     spot_info.innerHTML +=
-        '<br><br><a href="https://earth.google.com/web/@' +
-        spot.lat.toFixed(3) + ',' +
-        (spot.lon + dl).toFixed(3) + ',0a,' +
-        dt + 'd,35y,90h,77t" ' +
-        'style="color: white;" target=new>GoogleEarth View</a>' +
-        '<br>(use CTRL-arrows<br>to look around)';
+      '<br><br><a href="https://earth.google.com/web/@' +
+      spot.lat.toFixed(3) + ',' +
+      (spot.lon + dl).toFixed(3) + ',0a,' +
+      dt + 'd,35y,90h,77t" ' +
+      'style="color: white;" target=new>GoogleEarth View</a>' +
+      '<br>(use CTRL-arrows<br>to look around)';
   }
 
   spot_info.style.display = 'block';
@@ -1169,10 +1341,10 @@ function displayNextUpdateCountdown() {
 
   if (remaining_time >= 60) {
     update_countdown.innerHTML =
-        `Update in <b>${Math.floor(remaining_time / 60)}m</b>`;
+      `Update in <b>${Math.floor(remaining_time / 60)}m</b>`;
   } else if (remaining_time >= 0) {
     update_countdown.innerHTML =
-              `Update in <b>&lt;1m</b>`;
+      `Update in <b>&lt;1m</b>`;
   } else {
     // Can happen if the device went to sleep after last setTimeout()
     update_countdown.innerHTML = 'Update pending';
@@ -1181,7 +1353,7 @@ function displayNextUpdateCountdown() {
 
 // Displays progress by number of dots inside the button
 function displayProgress(stage) {
-//  document.getElementById('go_button').textContent = '.'.repeat(stage);
+  //  document.getElementById('go_button').textContent = '.'.repeat(stage);
   document.getElementById('go_button').textContent = '●'.repeat(stage);
 }
 
@@ -1201,34 +1373,53 @@ function cancelPendingUpdate() {
 function scheduleNextUpdate() {
   cancelPendingUpdate();
 
-  // Number of slots in telemetry sequence
-  const num_slots = (params.tracker == 'zachtek1' ? 1 : 2) +
-      (params.fetch_et || 0);
-  const tx_end_minute = getU4BSlotMinute(num_slots);
-
   const now = new Date();
 
-  // Wait 1m 15s after the end of the next basic telemetry TX.
-  // The delay is needed so that WSPR telemetry can trickle in.
-  // It is randomized so that a large number of people watching
-  // a flight do not all hit wspr.live servers at exactly the same
-  // time.
-  next_update_ts = new Date(now.getTime() +
-      (tx_end_minute * 60 + 70 -
-       (now.getUTCMinutes() % 10) * 60 - now.getUTCSeconds()) * 1000 +
-       Math.floor(Math.random() * 10000));
+  // Calculate when the next packet ends
+  // WSPR packets start every 2 minutes (even minutes) and last 2 minutes
+  // So the next packet end will be at the next even minute + 2 minutes
+  const currentMinute = now.getUTCMinutes();
+  const currentSecond = now.getUTCSeconds();
 
-  if (!next_update_ts) {
-    throw new Error('Internal error');
+  // Find the next even minute start time
+  let nextEvenMinute = currentMinute;
+  if (currentMinute % 2 !== 0) {
+    nextEvenMinute = currentMinute + 1; // Round up to next even minute
+  } else if (currentSecond > 0) {
+    nextEvenMinute = currentMinute + 2; // If we're past the start of current even minute, use next one
   }
 
-  while (next_update_ts - now < 10 * 1000) {
-    // Add 10 minutes
-    next_update_ts.setMinutes(next_update_ts.getMinutes() + 10);
+  // Handle minute rollover
+  if (nextEvenMinute >= 60) {
+    nextEvenMinute = nextEvenMinute % 60;
   }
+
+  // Calculate the end time of the next packet (packet start + 2 minutes)
+  let packetEndMinute = (nextEvenMinute + 2) % 60;
+
+  // Create the next update timestamp (packet end + 30 seconds)
+  next_update_ts = new Date(now);
+  next_update_ts.setUTCMinutes(packetEndMinute);
+  next_update_ts.setUTCSeconds(30 + Math.floor(Math.random() * 10000)); // 30 seconds after packet ends plus random delay
+  next_update_ts.setUTCMilliseconds(0);
+
+  // If the calculated time is in the past or too soon (less than 30 seconds away), 
+  // schedule for the next packet cycle
+  if (next_update_ts <= now || (next_update_ts - now) < 30000) {
+    next_update_ts.setUTCMinutes((packetEndMinute + 2) % 60);
+
+    // Handle hour rollover
+    if (packetEndMinute + 2 >= 60) {
+      next_update_ts.setUTCHours(next_update_ts.getUTCHours() + 1);
+    }
+  }
+
+  // Add small randomization (0-10 seconds) to avoid hitting servers simultaneously
+  const randomDelay = Math.floor(Math.random() * 10000);
+  next_update_ts = new Date(next_update_ts.getTime() + randomDelay);
 
   if (debug > 0) {
-    console.log('Next update: ', next_update_ts)
+    console.log('Next update: ', next_update_ts, `(in ${(next_update_ts - now) / 1000}s)`)
   }
 
   displayNextUpdateCountdown();
@@ -1254,10 +1445,12 @@ async function update(incremental_update = false) {
     displayProgress(stage++);
 
     const query = createWSPRLiveQuery(
-        false /* fetch_q01 */,
-        { 'zachtek2': [0, 1], 'generic2': [0, 1],
-          'unknown': [0, 1, 2, 3, 4] }[params.tracker] || [0]  /* slots */,
-        incremental_update);
+      false /* fetch_q01 */,
+      {
+        'zachtek2': [0, 1], 'generic2': [0, 1],
+        'unknown': [0, 1, 2, 3, 4]
+      }[params.tracker] || [0]  /* slots */,
+      incremental_update);
     new_data = importWSPRLiveData(await runQuery(query));
 
     displayProgress(stage++);
@@ -1265,25 +1458,44 @@ async function update(incremental_update = false) {
     if (params.tracker == 'u4b' || params.tracker == 'wb8elk') {
       // Fetch Q/0/1 callsign telemetry
       const slots = params.fetch_et ?
-          Array.from({length: params.fetch_et + 1}, (_, i) => i + 1) :
-          [1];
+        Array.from({ length: params.fetch_et + 1 }, (_, i) => i + 1) :
+        [1];
       const q01_query = createWSPRLiveQuery(
-          true /* fetch_q01 */, slots, incremental_update);
+        true /* fetch_q01 */, slots, incremental_update);
       new_data.push(...importWSPRLiveData(await runQuery(q01_query)));
       displayProgress(stage++);
     }
 
     // Sort new_data by (ts, cs)
     new_data.sort((row1, row2) =>
-        (row1.ts - row2.ts) ||
-        (row1.cs > row2.cs) - (row1.cs < row2.cs));
+      (row1.ts - row2.ts) ||
+      (row1.cs > row2.cs) - (row1.cs < row2.cs));
 
     if (debug > 2) console.log(new_data);
 
     if (!incremental_update) {
       data = new_data;
     } else {
-      data = mergeData(data, new_data);
+      const merge_result = mergeData(data, new_data);
+      data = merge_result.data;
+
+      // Show notification if new packets were received
+      if (merge_result.new_count > 0) {
+        // Check if notifications are enabled via checkbox
+        const notificationsCheckbox = document.getElementById('notifications_enabled');
+        if (notificationsCheckbox && notificationsCheckbox.checked) {
+          // Request notification permission if not already done
+          if (!notification_permission_requested) {
+            notification_permission_requested = true;
+            await requestNotificationPermission();
+          }
+
+          // Show notification
+          const callsign = params.cs || 'tracker';
+          showNewPacketNotification(merge_result.new_count, callsign);
+        }
+      }
+
       if (debug > 3) console.log(data);
     }
 
@@ -1292,12 +1504,8 @@ async function update(incremental_update = false) {
 
     decodeSpots();
 
-    if (document.getElementById('map').style.display == 'block') {
-      // Map view active
-      displayTrack();
-    } else {
-      // Data view is active
-    }
+    // Always display track since both map and data are visible
+    displayTrack();
 
     // Recenter the map on first load
     if (!incremental_update && last_marker) {
@@ -1308,7 +1516,7 @@ async function update(incremental_update = false) {
     last_update_ts = now;
 
     if (incremental_update ||
-        (!dnu_param && now - params.end_date < 86400 * 1000)) {
+      (!dnu_param && now - params.end_date < 86400 * 1000)) {
       // Only schedule updates for current flights
       scheduleNextUpdate();
     }
@@ -1317,7 +1525,7 @@ async function update(incremental_update = false) {
     cancelPendingUpdate();
     if (error instanceof TypeError) {
       alert('WSPR Live request failed. ' +
-            'Refresh the page to resume updates.');
+        'Refresh the page to resume updates.');
     } else {
       alert(debug > 0 ? `\n${error.stack}` : error);
     }
@@ -1331,35 +1539,21 @@ async function update(incremental_update = false) {
 // Updates the URL based on current params, for bookmarking etc
 function updateURL() {
   try {
-    let url = '?cs=' +
-        encodeURIComponent(document.getElementById('cs').value.trim());
-    url += '&ch=' +
-        encodeURIComponent(document.getElementById('ch').value.trim());
-    url += '&band=' +
-        encodeURIComponent(document.getElementById('band').value);
-    url += '&start_date=' +
-        encodeURIComponent(document.getElementById('start_date').value.trim());
-    if (end_date_param) {
-      url += '&end_date=' + encodeURIComponent(end_date_param);
+    let url = '';
+    const presetSelect = document.getElementById('preset');
+    const selectedPreset = presetSelect.value;
+
+    if (selectedPreset && selectedPreset !== '') {
+      // Using a preset - only include preset parameter
+      // All configuration (including end_date) is handled by the preset
+      url = '?preset=' + encodeURIComponent(selectedPreset);
     }
+
+    // Only add additional parameters that are not controlled by presets
     if (units_param) {
-      url += '&units=' + encodeURIComponent(units_param);
+      url += (url ? '&' : '?') + 'units=' + encodeURIComponent(units_param);
     }
-    if (et_dec_param) {
-      url += '&et_dec=' + encodeURLParam(et_dec_param);
-    }
-    if (et_labels_param) {
-      url += '&et_labels=' + encodeURLParam(et_labels_param);
-    }
-    if (et_llabels_param) {
-      url += '&et_llabels=' + encodeURLParam(et_llabels_param);
-    }
-    if (et_units_param) {
-      url += '&et_units=' + encodeURLParam(et_units_param);
-    }
-    if (et_res_param) {
-      url += '&et_res=' + encodeURLParam(et_res_param);
-    }
+
     history.replaceState(null, '', url);
   } catch (error) {
     console.log('Security error triggered by history.replaceState()');
@@ -1370,7 +1564,7 @@ function updateURL() {
 // escapes ' ' as '+'
 function encodeURLParam(param) {
   return Array.from(param.replace(/\s/g, '+')).map(c =>
-      ',:'.includes(c) ? c : encodeURIComponent(c)
+    ',:'.includes(c) ? c : encodeURIComponent(c)
   ).join('');
 }
 
@@ -1404,13 +1598,13 @@ const kDataFields = [
     'label': 'Lat',
     'color': '#0066cc',
     'type': 'angle',
-    'formatter': (v, au) => `${v.toFixed(2)}` + (au ? '°' : '')
+    'formatter': (v, au) => `${v.toFixed(6)}` + (au ? '°' : '')
   }],
   ['lon', {
     'label': 'Lon',
     'color': '#0066cc',
     'type': 'angle',
-    'formatter': (v, au) => `${v.toFixed(2)}` + (au ? '°' : '')
+    'formatter': (v, au) => `${v.toFixed(6)}` + (au ? '°' : '')
   }],
   ['altitude', { 'graph': {} }],
   ['vspeed', {
@@ -1498,7 +1692,7 @@ function computeDerivedData(spots) {
     derived_data[field] = new Array(spots.length).fill(undefined);
   }
   let last_altitude_spot = null;
-  let last_grid6_spot = null;
+  let last_good_spot = null;
   for (let i = 0; i < spots.length; i++) {
     const spot = spots[i];
     if (['u4b', 'generic1', 'generic2', 'unknown'].includes(params.tracker)) {
@@ -1508,33 +1702,60 @@ function computeDerivedData(spots) {
       if (last_altitude_spot && spot.altitude) {
         // Calculate vspeed
         derived_data['vspeed'][i] =
-            (spot.altitude - last_altitude_spot.altitude) * 60000 /
-            ((spot.ts - last_altitude_spot.ts) || 1);
+          (spot.altitude - last_altitude_spot.altitude) * 60000 /
+          ((spot.ts - last_altitude_spot.ts) || 1);
       }
-      if (params.tracker != 'unknown' && spot.grid.length == 6) {
-        if (last_grid6_spot) {
-          // Calculate cspeed (computed speed)
-          let dist = L.latLng(last_grid6_spot.lat, last_grid6_spot.lon)
-              .distanceTo([spot.lat, spot.lon]) / 1000;
-          let ts_delta = (spot.ts - last_grid6_spot.ts) || 1;
-          let cspeed = dist * 3600000 / ts_delta;
-          let min_cspeed = Math.max(dist - 4, 0) * 3600000 / ts_delta;
-          let max_cspeed = (dist + 4) * 3600000 / ts_delta;
-          if (cspeed > (max_cspeed - min_cspeed) * 4 ||
-              max_cspeed - min_cspeed <= 10) {
-            // Close enough
-            derived_data['cspeed'][i] = Math.min(350, cspeed);
-            last_grid6_spot = spot;
+      let currentSats = spot.et && spot.et[3] !== undefined ? spot.et[3] : null;
+      if (params.tracker != 'unknown' && spot.grid.length >= 6 && currentSats !== 0) {
+        if (last_good_spot) {
+          // If previous window only had 6-figure grid, only use 6-figure grid for current spot
+          let currentGrid = spot.grid;
+          let previousGrid = last_good_spot.grid;
+
+          // If previous was 6-char and current is 8-char, truncate current to 6-char for calculation
+          if (previousGrid.length === 6 && currentGrid.length === 8) {
+            currentGrid = currentGrid.substring(0, 6);
+            // Recalculate lat/lon using 6-char grid for speed calculation
+            let [lat6, lon6] = maidenheadToLatLon(currentGrid);
+            var currentLat = lat6;
+            var currentLon = lon6;
+          } else {
+            var currentLat = spot.lat;
+            var currentLon = spot.lon;
+          }
+
+          // Calculate cspeed (computed speed) using lat/lon from grid squares
+          let dist = L.latLng(last_good_spot.lat, last_good_spot.lon)
+            .distanceTo([currentLat, currentLon]) / 1000;
+          let ts_delta = (spot.ts - last_good_spot.ts) || 1;
+
+          // Convert to km/h: distance(km) * 3600(s/h) / time(s)
+          let cspeed = dist * 3600 / (ts_delta / 1000);
+
+          // Use uncertainty based on the precision level actually used for calculation
+          let effectiveGridLength = Math.min(previousGrid.length, currentGrid.length);
+          let uncertainty_km = effectiveGridLength >= 8 ? 0.2 : 4; // 200m vs 4km
+          let min_cspeed = Math.max(dist - uncertainty_km, 0) * 3600 / (ts_delta / 1000);
+          let max_cspeed = (dist + uncertainty_km) * 3600 / (ts_delta / 1000);
+
+          // More lenient acceptance criteria for 8-character grids due to higher precision
+          let max_uncertainty = effectiveGridLength >= 8 ? 20 : 50; // km/h
+
+          if (cspeed <= 350 &&
+            (max_cspeed - min_cspeed <= max_uncertainty ||
+              (cspeed >= 0 && cspeed <= 300))) {
+            derived_data['cspeed'][i] = cspeed;
+            last_good_spot = spot;
           }
         } else {
-          last_grid6_spot = spot;
+          last_good_spot = spot;
         }
       }
     }
     if (spot.altitude) last_altitude_spot = spot;
     derived_data['sun_elev'][i] = getSunElevation(spot.ts, spot.lat, spot.lon);
     [derived_data['num_rx'][i], derived_data['max_rx_dist'][i],
-     derived_data['max_snr'][i]] = getRXStats(spot);
+    derived_data['max_snr'][i]] = getRXStats(spot);
   }
   for (const field of kDerivedFields) {
     if (derived_data[field].every(v => v == undefined)) {
@@ -1543,7 +1764,7 @@ function computeDerivedData(spots) {
   }
   // Only keep power if some values are different
   if (derived_data['power'] &&
-      new Set(derived_data['power'].filter(v => v != undefined)).size < 2) {
+    new Set(derived_data['power'].filter(v => v != undefined)).size < 2) {
     delete derived_data['power'];
   }
   return derived_data;
@@ -1636,50 +1857,45 @@ function getExtendedTelemetryAttributes(i) {
 }
 
 function showDataView() {
-  // Hide map UI
-  document.getElementById('map').style.display = 'none';
-  document.getElementById('show_data_button').style.display = 'none';
-  document.getElementById('control_panel').style.display = 'none';
-  clearTrack();
   clearDataView();
 
   let data_view = document.getElementById('data_view');
   data_view.style.display = 'block';
-  document.getElementById('close_data_button').style.display = 'block';
 
   let div = document.createElement('div');
   div.id = 'data_view_wrapper';
+  div.style.padding = '20px';
 
   let notice = document.createElement('div');
   if (is_mobile) {
-    notice.innerHTML = '&lt;-- Tap here to close. ' +
-        'Charts are touch-enabled, supporting pan and zoom gestures.';
+    notice.innerHTML = 'Charts are touch-enabled, supporting pan and zoom gestures.';
   } else {
-    notice.innerHTML = '⟵ Click here to close. To <b>zoom in</b> ' +
-        'on charts, click and drag. To <b>zoom out</b>, double click.';
+    notice.innerHTML = 'To <b>zoom in</b> on charts, click and drag. To <b>zoom out</b>, double click.';
   }
   notice.classList.add('notice');
-  notice.style.marginLeft = '40px';
+  notice.style.marginBottom = '20px';
   div.appendChild(notice);
 
   let supplementary_data =
-      { ...computeDerivedData(spots),
-        ...extractExtendedTelemetryData(spots) };
+  {
+    ...computeDerivedData(spots),
+    ...extractExtendedTelemetryData(spots)
+  };
 
   // Find the union of all present fields
   const present_spot_fields = Object.fromEntries(
-      [...new Set(spots.flatMap(Object.keys))].map(f => [f, 1]));
+    [...new Set(spots.flatMap(Object.keys))].map(f => [f, 1]));
   const present_supplementary_fields = Object.fromEntries(
-      Object.keys(supplementary_data).map(f => [f, 1]));
+    Object.keys(supplementary_data).map(f => [f, 1]));
   let present_fields = Object.fromEntries(
-      [...Object.entries(present_spot_fields),
-       ...Object.entries(present_supplementary_fields)]);
+    [...Object.entries(present_spot_fields),
+    ...Object.entries(present_supplementary_fields)]);
 
   // Prefill the table with row numbers
   let table_headers = ['#'];
   let long_headers = ['#'];
   let table_data = [Array.from(
-      { length: spots.length }, (_, i) => i + 1)];
+    { length: spots.length }, (_, i) => i + 1)];
   let field_specs = [{}];
   let table_formatters = [null];
   let table_fetchers = [null];
@@ -1688,39 +1904,31 @@ function showDataView() {
   let graph_data_indices = [];  // indices into table_data
   const ts_values = spots.map(spot => spot.ts.getTime() / 1000);
 
-  let can_show_more = false;
-  let can_show_less = false;
-
   // Add ET to the list of possible fields
   let data_fields = [...kDataFields];
   for (let i = 1; i < 5; i++) {
     if (supplementary_data[`raw_et${i}`]) {
       data_fields.push(
-          [`raw_et${i}`,
-           { 'color': '#7b5d45', 'label': `Raw ET${i}` }]);
+        [`raw_et${i}`,
+        { 'color': '#7b5d45', 'label': `Raw ET${i}` }]);
     }
   }
   for (let i = 0; i < 32; i++) {
     if (supplementary_data[`et${i}`]) {
       const [label, long_label, units, formatter] =
-          getExtendedTelemetryAttributes(i);
+        getExtendedTelemetryAttributes(i);
       data_fields.push([`et${i}`,
-        { 'label': label, 'long_label': long_label, 'units': units,
-          'formatter': formatter, 'graph': {} }]);
+      {
+        'label': label, 'long_label': long_label, 'units': units,
+        'formatter': formatter, 'graph': {}
+      }]);
     }
   }
 
   // Iterate through possible fields
   for (const [field, spec] of data_fields) {
     if (!present_fields[field]) continue;
-    if ((spec.min_detail || 0) > params.detail) {
-      can_show_more = true;
-      continue;
-    }
-
-    if (spec.min_detail || 0) {
-      can_show_less = true;
-    }
+    // Always show all available fields - removed detail level filtering
 
     // Attach the correct formatter / fetcher
     let formatter = null;
@@ -1747,9 +1955,9 @@ function showDataView() {
     const default_label = field[0].toUpperCase() + field.slice(1);
     let table_header = spec['label'] || default_label;
     let long_label =
-        spec['long_label'] || spec['label'] || default_label;
+      spec['long_label'] || spec['label'] || default_label;
     let units = spec['units'] ||
-        (kUnitInfo[type] && kUnitInfo[type][params.units][0]);
+      (kUnitInfo[type] && kUnitInfo[type][params.units][0]);
     if (units) {
       long_label += ' (' + units.trim() + ')';
       table_header += '\n(' + units.trim() + ')';
@@ -1768,9 +1976,9 @@ function showDataView() {
       field_data = supplementary_data[field];
     } else {
       field_data = spots.map(spot =>
-          spot[field] == undefined ?
-              undefined : (spec.fetcher ?
-                  spec.fetcher(spot[field]) : spot[field]));
+        spot[field] == undefined ?
+          undefined : (spec.fetcher ?
+            spec.fetcher(spot[field]) : spot[field]));
     }
     table_data.push(field_data);
   }
@@ -1778,7 +1986,7 @@ function showDataView() {
   // Add graphs
   data_view.u_plots = [];  // references to created uPlot instances
   for (let i = 0; i < graph_data_indices.length; i++) {
-    let index  = graph_data_indices[i];
+    let index = graph_data_indices[i];
     const opts = {
       tzDate: ts => uPlot.tzDate(new Date(ts * 1e3), 'Etc/UTC'),
       cursor: {
@@ -1789,11 +1997,11 @@ function showDataView() {
       height: 300,
       plugins: [touchZoomPlugin()],
       series: [{ label: 'Time UTC' },
-        {
-          label: graph_labels[i],
-          stroke: 'blue',
-          value: (self, value) => value
-        }
+      {
+        label: graph_labels[i],
+        stroke: 'blue',
+        value: (self, value) => value
+      }
       ],
       scales: [{ label: 'x' }],
       axes: [{}, { size: 52 }]
@@ -1801,24 +2009,19 @@ function showDataView() {
 
     const fetcher = table_fetchers[index] || ((v) => v);
     data_view.u_plots.push(
-        new uPlot(opts, [ts_values, table_data[index].map(
-            (v) => (v == undefined) ? v : fetcher(v))], div));
+      new uPlot(opts, [ts_values, table_data[index].map(
+        (v) => (v == undefined) ? v : fetcher(v))], div));
   }
 
   div.appendChild(document.createElement('br'));
 
   div.appendChild(
-      createPrettyButton('Toggle Units', toggleUnits));
-  if (params.detail != null && (can_show_less || can_show_more)) {
-    div.appendChild(
-        createPrettyButton(params.detail ? 'Show Less' : 'Show More',
-                           toggleDataViewDetail));
-  }
+    createPrettyButton('Toggle Units', toggleUnits));
   div.appendChild(
-      createPrettyButton('Export CSV',
-          () => downloadCSV(long_headers, table_data, table_formatters)));
+    createPrettyButton('Export CSV',
+      () => downloadCSV(long_headers, table_data, table_formatters)));
   div.appendChild(
-      createPrettyButton('Get Raw Data', () => downloadJSON(spots)));
+    createPrettyButton('Get Raw Data', () => downloadJSON(spots)));
 
   // Populate the table
   let table = document.createElement('table');
@@ -1871,9 +2074,9 @@ function toggleDataViewDetail() {
 function getDownloadFilename(ext) {
   const raw_ch = document.getElementById('ch').value.trim().toUpperCase();
   return params.cs.toUpperCase().replace(/\//g, '_') + '_' + raw_ch + '_' +
-      formatTimestamp(params.start_date).slice(0, 10).replace(/-/g, '') + '-' +
-      formatTimestamp(params.end_date).slice(0, 10).replace(/-/g, '') +
-      '.' + ext;
+    formatTimestamp(params.start_date).slice(0, 10).replace(/-/g, '') + '-' +
+    formatTimestamp(params.end_date).slice(0, 10).replace(/-/g, '') +
+    '.' + ext;
 }
 
 function downloadJSON(spots) {
@@ -1900,10 +2103,10 @@ function downloadCSV(headers, data, formatters) {
     rows.push(row);
   }
   let csv = rows.map(row =>
-      row.map(v => {
-        v = String(v).replace(/"/g, '""');
-        return /[",\r\n]/.test(v) ? `"${v}"` : v;
-      }).join(',')
+    row.map(v => {
+      v = String(v).replace(/"/g, '""');
+      return /[",\r\n]/.test(v) ? `"${v}"` : v;
+    }).join(',')
   ).join('\n');
   downloadFile(csv, 'text/csv', getDownloadFilename('csv'))
 }
@@ -1923,15 +2126,8 @@ function downloadFile(data, mime_type, filename) {
 function closeDataView() {
   // Hide data view UI
   clearDataView();
+  let data_view = document.getElementById('data_view');
   data_view.style.display = 'none';
-  document.getElementById('close_data_button').style.display = 'none';
-  document.getElementById('map').style.display = 'block';
-
-  // Display map UI
-  map.invalidateSize();  // in case the screen rotated in data view
-  document.getElementById('show_data_button').style.display = 'block';
-  document.getElementById('control_panel').style.display = 'block';
-  displayTrack();
 }
 
 // Prefills form fields from URL decorators
@@ -1947,8 +2143,8 @@ function initializeFormFields() {
   if (!start_date_param) {
     // Prefill to a date 1 month in the past
     start_date_param = formatTimestamp(
-        new Date(new Date().setUTCMonth(new Date().getUTCMonth() - 1)))
-        .slice(0, 10);
+      new Date(new Date().setUTCMonth(new Date().getUTCMonth() - 1)))
+      .slice(0, 10);
   }
   document.getElementById('start_date').value = start_date_param;
 }
@@ -1978,16 +2174,16 @@ function parseExtendedTelemetrySpec() {
           }
         } else if (filter.length == 4 && filter[0] == 't') {
           filter = [filter[0], Number(filter[1]), Number(filter[2]),
-                    Number(filter[3])];
+          Number(filter[3])];
           if (!filter.slice(1).every(v => Number.isInteger(v)) ||
-              filter[1] <= 0 || filter[2] <= 1 || filter[3] < 0) {
+            filter[1] <= 0 || filter[2] <= 1 || filter[3] < 0) {
             return null;
           }
         } else if (filter.length == 3) {
           filter = [Number(filter[0]), Number(filter[1]),
-                    filter[2] == 's' ? 's' : Number(filter[2])];
+          filter[2] == 's' ? 's' : Number(filter[2])];
           if (!filter.every(v => Number.isInteger(v) || v == 's') ||
-              filter[0] <= 0 || filter[1] <= 1 || filter[2] < 0) {
+            filter[0] <= 0 || filter[1] <= 1 || filter[2] < 0) {
             return null;
           }
         } else {
@@ -2008,7 +2204,7 @@ function parseExtendedTelemetrySpec() {
       if (extractor.length != 4) return null;
       for (let i = 0; i < extractor.length; i++) {
         if ((i <= 1) && (!Number.isInteger(extractor[i]) ||
-            extractor[i] < 1)) {
+          extractor[i] < 1)) {
           return null;
         }
         if (Number.isNaN(extractor[2])) return null;
@@ -2043,9 +2239,9 @@ function parseExtendedTelemetrySpec() {
   }
   if (et_res_param) {
     resolutions = et_res_param.split(',').map(
-        v => v == '' ? null : Number(v));
+      v => v == '' ? null : Number(v));
     if (!resolutions.every(
-        v => v == null || (Number.isInteger(v) && v > 0 && v < 4))) {
+      v => v == null || (Number.isInteger(v) && v > 0 && v < 4))) {
       return null;
     }
   }
@@ -2064,17 +2260,17 @@ function Run() {
   end_date_param = getUrlParameter('end_date');
   units_param = getUrlParameter('units');
   dnu_param = getUrlParameter('dnu');
-  et_dec_param = getUrlParameter('et_dec');
-  et_labels_param = getUrlParameter('et_labels');
-  et_llabels_param = getUrlParameter('et_llabels');
-  et_units_param = getUrlParameter('et_units');
+  et_dec_param = getUrlParameter('et_dec') || 'et0:0_1101:0:1,100:0:1,101:0:10,41:0:1';
+  et_labels_param = getUrlParameter('et_labels') || 'Pres,Loc,Uptime,NumSats';
+  et_llabels_param = getUrlParameter('et_llabels') || 'Pressure,,,Number_Of_Satellites';
+  et_units_param = getUrlParameter('et_units') || ' hPa,, min';
   et_res_param = getUrlParameter('et_res');
 
   // On mobile devices, allow for a larger click area
   let click_tolerance = 0;
   const agent_regexp = new RegExp(
-      'Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop|' +
-      'BlackBerry|BB|PlayBook');
+    'Mobi|Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop|' +
+    'BlackBerry|BB|PlayBook');
   if (agent_regexp.test(navigator.userAgent)) {
     click_tolerance = 15;
     is_mobile = true;
@@ -2090,43 +2286,50 @@ function Run() {
 
   // Initialize the map
   map = L.map('map',
-      { renderer : L.canvas({tolerance: click_tolerance })});
+    {
+      renderer: L.canvas({ tolerance: click_tolerance }),
+      minZoom: 2
+    });
 
   // Use local English-label tiles for lower levels
   L.tileLayer(
-      'osm_tiles/{z}/{x}/{y}.png',
-      { maxZoom: 6,
-        attribution:
-            '<a href="https://github.com/wsprtv/wsprtv.github.io">' +
-            'WSPR TV</a> | &copy; <a href="https://www.openstreetmap.org' +
-            '/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+    'osm_tiles/{z}/{x}/{y}.png',
+    {
+      maxZoom: 6,
+      attribution:
+        '<a href="https://github.com/wsprtv/wsprtv.github.io">' +
+        'WSPR TV</a> | &copy; <a href="https://www.openstreetmap.org' +
+        '/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
   // Use OSM-hosted tiles for higher levels
   L.tileLayer(
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { minZoom: 7, maxZoom: 12,
-        attribution:
-            '<a href="https://github.com/wsprtv/wsprtv.github.io">' +
-            'WSPR TV</a> | &copy; <a href="https://www.openstreetmap.org' +
-            '/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      minZoom: 7, maxZoom: 12,
+      attribution:
+        '<a href="https://github.com/wsprtv/wsprtv.github.io">' +
+        'WSPR TV</a> | &copy; <a href="https://www.openstreetmap.org' +
+        '/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
   map.setView([init_lat, init_lon], init_zoom_level);
 
   // Add day / night visualization and the scale indicator
   let terminator = L.terminator(
-      { opacity: 0, fillOpacity: 0.3, interactive: false,
-        longitudeRange: 360 }).addTo(map);
+    {
+      opacity: 0, fillOpacity: 0.3, interactive: false,
+      longitudeRange: 360
+    }).addTo(map);
   L.control.scale().addTo(map);
 
   // Draw the antimeridian
   L.polyline([[90, 180], [-90, 180]],
-      { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
-      .addTo(map).bringToBack();
+    { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
+    .addTo(map).bringToBack();
   L.polyline([[90, -180], [-90, -180]],
-      { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
-      .addTo(map).bringToBack();
+    { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
+    .addTo(map).bringToBack();
 
   // Grey out areas beyond the antimeridian to indicate there is no
   // data there
@@ -2140,13 +2343,14 @@ function Run() {
     interactive: false
   }).addTo(map);
 
+
   // Draw the equator
   L.polyline([[0, -180], [0, 180]],
-      { color: 'gray', weight: 1, opacity: 0.2 })
-      .addTo(map).bringToBack();
+    { color: 'gray', weight: 1, opacity: 0.2 })
+    .addTo(map).bringToBack();
 
   // On pan / zoom, save map location and zoom level
-  map.on('moveend', function() {
+  map.on('moveend', function () {
     const center = map.getCenter();
     localStorage.setItem('lat', center.lat);
     localStorage.setItem('lon', center.lng);
@@ -2157,40 +2361,22 @@ function Run() {
       map.setView(wrapped_center, map.getZoom(), { animate: false });
     }
   });
-  map.on('zoomend', function() {
+  map.on('zoomend', function () {
     localStorage.setItem('zoom_level', map.getZoom());
   });
 
   // Display auxiliary info for clicks on the map outside of markers
   map.on('click', onMapClick);
 
+  // Load and initialize presets
+  loadPresets();
+
   // Handle clicks on the "Go" button
   document.getElementById('go_button').addEventListener(
-      'click', processSubmission);
+    'click', processSubmission);
 
-  // Handle special menu selections
-  document.getElementById('band').addEventListener('change', function () {
-    if (this.value == 'user_guide') {
-      window.open('docs/user_guide.html', '_new');
-      this.value = params ? params.band : "20m";
-    } else if (this.value == 'ch_map') {
-      window.open('tools/u4bch.html', '_new');
-      this.value = params ? params.band : "20m";
-    }
-  });
-
-  // Handle clicks on the "Show data" button
-  document.getElementById('show_data_button').addEventListener(
-      'click', showDataView);
-
-  // Handle clicks on the "Close data" button
-  document.getElementById('close_data_button').addEventListener(
-      'click', closeDataView);
-
-  // Submit the form if parameters were provided in the URL
-  if (document.getElementById('cs').value) {
-    processSubmission(null, true /* on_load */);
-  }
+  // Note: Show/close data button event listeners removed as data is now 
+  // displayed inline automatically
 
   // Update UI elements that change over time (e.g. "X min ago" messages)
   setInterval(() => {
@@ -2207,6 +2393,156 @@ function Run() {
   setInterval(() => {
     terminator.setTime(new Date());
   }, 120 * 1000);
+}
+
+// Global variable to store presets
+let presets = [];
+
+// Load presets from configuration file
+async function loadPresets() {
+  try {
+    const response = await fetch('presets.json');
+    presets = await response.json();
+    populatePresetDropdown();
+    setupPresetEventListeners();
+
+    // Check URL parameters after presets are loaded
+    checkUrlParametersForPreset();
+
+    // Submit the form if parameters were provided in the URL
+    if (document.getElementById('cs').value) {
+      processSubmission(null, true /* on_load */);
+    }
+  } catch (error) {
+    console.error('Error loading presets:', error);
+    // Show error message - no presets available
+    const presetSelect = document.getElementById('preset');
+    const errorOption = document.createElement('option');
+    errorOption.value = '';
+    errorOption.textContent = 'Error loading presets';
+    presetSelect.appendChild(errorOption);
+
+    document.getElementById('config_info').innerHTML = 'Error: Could not load preset configuration';
+  }
+}
+
+// Populate the preset dropdown
+function populatePresetDropdown() {
+  const presetSelect = document.getElementById('preset');
+
+  // Clear existing options except the first one
+  while (presetSelect.children.length > 1) {
+    presetSelect.removeChild(presetSelect.lastChild);
+  }
+
+  // Add preset options
+  presets.forEach((preset, index) => {
+    const option = document.createElement('option');
+    option.value = index;
+    option.textContent = preset.name;
+    presetSelect.appendChild(option);
+  });
+}
+
+// Setup event listeners for preset selection
+function setupPresetEventListeners() {
+  const presetSelect = document.getElementById('preset');
+  const csInput = document.getElementById('cs');
+  const chInput = document.getElementById('ch');
+  const bandInput = document.getElementById('band');
+  const startDateInput = document.getElementById('start_date');
+  const endDateInput = document.getElementById('end_date');
+  const configInfo = document.getElementById('config_info');
+  const notificationsCheckbox = document.getElementById('notifications_enabled');
+
+  // Notification checkbox event listener
+  notificationsCheckbox.addEventListener('change', async function () {
+    if (this.checked) {
+      // Try to enable notifications
+      const granted = await requestNotificationPermission();
+      if (!granted) {
+        // Permission denied, uncheck the box
+        this.checked = false;
+        alert('Notification permission was denied. Please enable notifications in your browser settings if you want to receive alerts.');
+      }
+    } else {
+      // Disable notifications
+      notifications_enabled = false;
+    }
+
+    // Save preference
+    localStorage.setItem('notifications_enabled', this.checked.toString());
+  });
+
+  // Restore notification preference
+  const savedNotificationPref = localStorage.getItem('notifications_enabled');
+  if (savedNotificationPref === 'true') {
+    notificationsCheckbox.checked = true;
+    // Try to enable notifications silently (if permission already granted)
+    if (Notification.permission === 'granted') {
+      notifications_enabled = true;
+    }
+  }
+
+  presetSelect.addEventListener('change', function () {
+    if (this.value === '') {
+      // "Select Preset..." option selected
+      csInput.value = '';
+      chInput.value = '';
+      bandInput.value = '';
+      startDateInput.value = '';
+      endDateInput.value = '';
+      configInfo.innerHTML = '';
+      return;
+    }
+
+    // Preset selected
+    const presetIndex = parseInt(this.value);
+    const preset = presets[presetIndex];
+
+    if (preset) {
+      // Apply preset values
+      csInput.value = preset.callsign || '';
+      chInput.value = preset.channel || '';
+      bandInput.value = preset.band || '20m';
+      startDateInput.value = preset.start_date || '';
+      endDateInput.value = preset.end_date || '';
+
+      // Update info display
+      const startDateText = preset.start_date || 'Auto';
+      const endDateText = preset.end_date || 'Auto';
+      configInfo.innerHTML = `Band: ${preset.band || '20m'}, Start: ${startDateText}, End: ${endDateText}`;
+
+      // Set extended telemetry parameters
+      et_dec_param = preset.et_dec || '';
+      et_labels_param = preset.et_labels || '';
+      et_llabels_param = preset.et_llabels || '';
+      et_units_param = preset.et_units || '';
+      et_res_param = preset.et_res || '';
+    }
+  });
+}
+
+// Check if URL parameters should override preset selection
+function checkUrlParametersForPreset() {
+  const presetParam = getUrlParameter('preset');
+
+  if (presetParam) {
+    // Preset specified in URL
+    const presetIndex = parseInt(presetParam);
+    if (!isNaN(presetIndex) && presetIndex >= 0 && presetIndex < presets.length) {
+      document.getElementById('preset').value = presetIndex;
+      // Trigger the change event to apply the preset
+      document.getElementById('preset').dispatchEvent(new Event('change'));
+      return;
+    }
+  }
+
+  // If no valid preset parameter found, default to first preset if available
+  if (presets.length > 0) {
+    document.getElementById('preset').value = 0;
+    document.getElementById('preset').dispatchEvent(new Event('change'));
+  }
 }
 
 Run();

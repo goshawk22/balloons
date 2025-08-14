@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Pico 7",
+    "callsign": "M7GAQ",
+    "channel": "197E",
+    "band": "20m",
+    "start_date": "2025-08-08",
+    "end_date": "2025-08-14",
+    "et_dec": "et0:0_1101:0:1,100:0:1,101:0:10,41:0:1",
+    "et_labels": "Pres,Loc,Uptime,NumSats",
+    "et_llabels": "Pressure,,,Number_Of_Satellites",
+    "et_units": " hPa,, min",
+    "et_res": ""
+  },
+  {
+    "name": "Pico 6",
+    "callsign": "M7GAQ",
+    "channel": "195E",
+    "band": "20m",
+    "start_date": "2025-08-03",
+    "end_date": "2025-08-05",
+    "et_dec": "et0:0_1101:0:1,100:0:1,101:0:10,41:0:1",
+    "et_labels": "Pres,Loc,Uptime,NumSats",
+    "et_llabels": "Pressure,,,Number_Of_Satellites",
+    "et_units": " hPa,, min",
+    "et_res": ""
+  },
+  {
+    "name": "Pico 5",
+    "callsign": "M7GAQ",
+    "channel": "225",
+    "band": "10m",
+    "start_date": "2025-04-11",
+    "end_date": "2025-04-16"
+  },
+  {
+    "name": "Pico 4",
+    "callsign": "M7GAQ",
+    "channel": "226",
+    "band": "10m",
+    "start_date": "2025-04-07",
+    "end_date": "2025-04-09"
+  },
+  {
+    "name": "Notification Test",
+    "callsign": "AC3AU",
+    "channel": "110",
+    "band": "30m",
+    "start_date": "2025-07-12",
+    "end_date": ""
+  }
+]
