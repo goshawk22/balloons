@@ -17,12 +17,11 @@ It's based around the STM32G071GB mcu and uses the same SI5351 clock generator a
 *The new tracker PCB design*
 
 ![Tracker with Solar Panels]({{ site.baseurl }}/assets/images/new-tracker-4cells-scales.jpg)
-*Assembled tracker with 4 solar panels*
+*Tracker with 4 solar panels*
 
 ## Extended Telemetry Capabilities
 
 This new tracker transmits significantly more data than previous versions:
-- Standard position data (latitude, longitude, altitude)
 - **Atmospheric pressure** readings from the onboard sensor
 - **System uptime** for monitoring operational duration
 - **GPS satellite count** for fun (and it helps us verify fixes)
