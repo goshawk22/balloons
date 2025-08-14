@@ -1,0 +1,61 @@
+---
+layout: post
+title:  "Pico-6: New Tracker Maiden Flight"
+date:   2025-08-14 11:00:00 +0000
+categories:
+---
+
+## Introduction
+
+Pico 6 was the maiden flight of the new tracker. 
+
+## New Tracker
+
+It's based around the STM32G071GB mcu and uses the same SI5351 clock generator and ATGM336H GPS common to other trackers such as Traquito and AG6NS. It uses the RT6150A buck boost converter to allow the tracker to be powered from as low as 1.8v. It also features mounting points to allow us to attach 2 panels to either side of the board. It also has a LPS22HB pressure sensor, which we plan to use with extended telemetry. Overall, this should allow for a lower power consumption, lighter payload and more data.
+
+![New Tracker Design]({{ site.baseurl }}/assets/images/new-tracker-2d-image.png)
+*The new tracker PCB design*
+
+![Tracker with Solar Panels]({{ site.baseurl }}/assets/images/new-tracker-4cells-scales.jpg)
+*Assembled tracker with 4 solar panels*
+
+## Extended Telemetry Capabilities
+
+This new tracker transmits significantly more data than previous versions:
+- Standard position data (latitude, longitude, altitude)
+- **Atmospheric pressure** readings from the onboard sensor
+- **System uptime** for monitoring operational duration
+- **GPS satellite count** for fun (and it helps us verify fixes)
+- **8-figure Maidenhead grid locator** (extended from 6-figure) for precise positioning
+
+## Pre-Launch
+
+Unfortunately we couldn't get the device to power on for the planned launch day due to significant cloud cover. We decided to use the 6 cell setup we used last time instead. This worked later that day so we decided to launch the following day.
+
+We used a new balloon that should result in a much higher float altitude
+
+**Balloon Specifications:**
+- Model: Partywoo 50"
+- Volume: ~0.25 m³
+- Weight: 54.7g
+
+## Launch day
+
+The launch day had significant low cloud, but we decided to launch anyway. It woke up at about 1.5km after clearing the cloud and transmitted consistently until nightfall. It reached a float altitude of 11,500m.
+
+The following morning it didn't wake up.
+
+## Post launch testing
+
+Testing on the ground revealed that the tracker itself failed to wake up in the morning. The tracker entered a loop where upon turning on, the inrush current from the capacitors etc would cause the solar voltage to break down. This would cause the MCU to reset and the loop would repeat.
+
+This was fixed by staggering the startup, adding voltage checks and adding capacitance to both VCC and VIN (solar). When the MCU starts up, it checks VIN to see what the voltage is. It then waits until the voltage is at least 3.3v, which seems to be a safe threshold to assume that there is enough power from the cells, before powering on the GPS and SI5351.
+
+We tested this on the ground for two consecutive days.
+
+**Future design improvements**
+ - Large ~100uF caps on VCC and VIN. Ensure there is more capacitance on VIN than VCC
+ - Improve VCC routing - some of the traces are quite long
+ - Better mounting attachment points for wire
+
+The [tracking link](https://traquito.github.io/search/spots/dashboard/?band=20m&channel=195&callsign=M7GAQ&dtGte=2025-08-03&dtLte=2025-08-05&slot3MsgDefUserDefined=%2F%2F+Example+Message+Definition+--+modify+then+save%21%0A%0A%7B+%22name%22%3A+%22Pressure%22%2C+++++%22unit%22%3A+%22Pa%22%2C+++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A+110000%2C++++%22stepSize%22%3A+100+++%7D%2C%0A%7B+%22name%22%3A+%22Loc%22%2C++++++%22unit%22%3A+%22Loc%22%2C++++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A++++99%2C++++%22stepSize%22%3A++1+++%7D%2C%0A%7B+%22name%22%3A+%22Uptime%22%2C++++++%22unit%22%3A+%22Min%22%2C++++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A++++1000%2C++++%22stepSize%22%3A++10+++%7D%2C%0A%7B+%22name%22%3A+%22Sats%22%2C++++++%22unit%22%3A+%22sats%22%2C++++%22lowValue%22%3A+++0%2C++++%22highValue%22%3A++++40%2C++++%22stepSize%22%3A++1+++%7D%2C) for the balloon.
