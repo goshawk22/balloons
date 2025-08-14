@@ -40,13 +40,5 @@
     "band": "10m",
     "start_date": "2025-04-07",
     "end_date": "2025-04-09"
-  },
-  {
-    "name": "Notification Test",
-    "callsign": "AC3AU",
-    "channel": "110",
-    "band": "30m",
-    "start_date": "2025-07-12",
-    "end_date": ""
   }
 ]
