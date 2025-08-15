@@ -35,6 +35,7 @@ let marker_group;
 let segment_group;
 let last_marker;  // last marker in the displayed track
 let selected_marker;  // currently selected (clicked) marker
+let marker_with_receivers;  // marker that currently has receivers displayed
 
 let data = [];  // raw wspr.live telemetry data
 let spots = [];  // merged / annotated telemetry data
@@ -98,14 +99,14 @@ const kWSPRPowers = [0, 3, 7, 10, 13, 17, 20, 23, 27, 30, 33, 37, 40,
 function adjustReceiverCoords(tx_lat_lng, rx_lat_lng) {
   const tx_lng = tx_lat_lng.lng;
   const rx_lng = rx_lat_lng.lng;
-  
+
   // Calculate the difference in longitude
   const lng_diff = Math.abs(tx_lng - rx_lng);
-  
+
   // If the difference is greater than 180°, we should go the other way
   if (lng_diff > 180) {
     let adjusted_rx_lng = rx_lng;
-    
+
     // If transmitter is on the right side (positive longitude near +180)
     // and receiver is on the left side (negative longitude near -180)
     if (tx_lng > 0 && rx_lng < 0) {
@@ -116,10 +117,10 @@ function adjustReceiverCoords(tx_lat_lng, rx_lat_lng) {
     else if (tx_lng < 0 && rx_lng > 0) {
       adjusted_rx_lng = rx_lng - 360;
     }
-    
+
     return L.latLng(rx_lat_lng.lat, adjusted_rx_lng);
   }
-  
+
   // No adjustment needed
   return rx_lat_lng;
 }
@@ -1206,51 +1207,64 @@ function onMarkerMouseout(e) {
 function onMarkerClick(e) {
   let marker = e.layer;
   const spot = marker.spot;
-  if (marker == selected_marker) {
-    hideMarkerRXInfo(selected_marker);
-    document.getElementById('spot_info').style.display = 'none';
-    selected_marker = null;
-  } else {
-    if (selected_marker) {
-      hideMarkerRXInfo(selected_marker);
-    }
-    selected_marker = marker;
-    displaySpotInfo(marker, e.containerPoint);
-    marker.rx_markers = [];
-    marker.rx_segments = [];
-    spot.slots[0].rx.forEach(r => {
-      let rx_lat_lon = maidenheadToLatLon(r.grid);
-      
-      // Adjust receiver coordinates to avoid long lines across the map
-      let adjusted_rx_lat_lon = adjustReceiverCoords(marker.getLatLng(), L.latLng(rx_lat_lon));
-      
-      let rx_marker = L.circleMarker(
-        adjusted_rx_lat_lon,
-        {
-          radius: 6, color: 'black',
-          fillColor: 'yellow', weight: 1, stroke: true,
-          fillOpacity: 1
-        }).addTo(map);
-      rx_marker.on('click', function (e) {
-        L.DomEvent.stopPropagation(e);
-      });
-      let dist = marker.getLatLng().distanceTo(rx_lat_lon);
-      rx_marker.bindTooltip(
-        `${r.cs} ${formatDistance(dist)} ${r.snr} dBm`,
-        { direction: 'top', opacity: 0.8 });
-      marker.rx_markers.push(rx_marker);
-      
-      let segment = L.polyline([marker.getLatLng(), adjusted_rx_lat_lon],
-        { weight: 1.4, color: 'blue' }).addTo(map).bringToBack();
-      marker.rx_segments.push(segment);
-    });
+
+  // Hide any previously displayed receivers
+  if (marker_with_receivers) {
+    hideMarkerRXInfo(marker_with_receivers);
   }
+
+  // Hide any previously selected marker's receiver info
+  if (selected_marker) {
+    hideMarkerRXInfo(selected_marker);
+  }
+
+  // Show receivers for the clicked marker, but don't make it "selected"
+  // This allows the info to hide on mouseout like normal hover behavior
+  marker.rx_markers = [];
+  marker.rx_segments = [];
+  spot.slots[0].rx.forEach(r => {
+    let rx_lat_lon = maidenheadToLatLon(r.grid);
+
+    // Adjust receiver coordinates to avoid long lines across the map
+    let adjusted_rx_lat_lon = adjustReceiverCoords(marker.getLatLng(), L.latLng(rx_lat_lon));
+
+    let rx_marker = L.circleMarker(
+      adjusted_rx_lat_lon,
+      {
+        radius: 6, color: 'black',
+        fillColor: 'yellow', weight: 1, stroke: true,
+        fillOpacity: 1
+      }).addTo(map);
+    rx_marker.on('click', function (e) {
+      L.DomEvent.stopPropagation(e);
+    });
+    let dist = marker.getLatLng().distanceTo(rx_lat_lon);
+    rx_marker.bindTooltip(
+      `${r.cs} ${formatDistance(dist)} ${r.snr} dBm`,
+      { direction: 'top', opacity: 0.8 });
+    marker.rx_markers.push(rx_marker);
+
+    let segment = L.polyline([marker.getLatLng(), adjusted_rx_lat_lon],
+      { weight: 1.4, color: 'blue' }).addTo(map).bringToBack();
+    marker.rx_segments.push(segment);
+  });
+
+  // Track which marker has receivers displayed and clear selected marker
+  marker_with_receivers = marker;
+  selected_marker = null;
+
   L.DomEvent.stopPropagation(e);
 }
 
 function onMapClick(e) {
   // Hide spot info if currently displayed
   document.getElementById('spot_info').style.display = 'none';
+
+  // Hide any receivers that are currently displayed
+  if (marker_with_receivers) {
+    hideMarkerRXInfo(marker_with_receivers);
+    marker_with_receivers = null;
+  }
 
   // Display lat / lng / sun elevation of clicked point
   const lat = e.latlng.lat.toFixed(2);
@@ -1953,14 +1967,14 @@ function showDataView() {
     if (supplementary_data[`et${i}`]) {
       const [label, long_label, units, formatter] =
         getExtendedTelemetryAttributes(i);
-      
+
       // Don't show a graph for the "Loc" field
       const shouldShowGraph = label !== 'Loc';
-      
+
       data_fields.push([`et${i}`,
       {
         'label': label, 'long_label': long_label, 'units': units,
-        'formatter': formatter, 
+        'formatter': formatter,
         ...(shouldShowGraph ? { 'graph': {} } : {})
       }]);
     }
