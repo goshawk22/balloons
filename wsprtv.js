@@ -93,6 +93,37 @@ const kWSPRBandInfo = {
 const kWSPRPowers = [0, 3, 7, 10, 13, 17, 20, 23, 27, 30, 33, 37, 40,
   43, 47, 50, 53, 57, 60];
 
+// Adjust receiver coordinates to avoid long lines across the map
+// when transmitter and receiver are on opposite sides of antimeridian
+function adjustReceiverCoords(tx_lat_lng, rx_lat_lng) {
+  const tx_lng = tx_lat_lng.lng;
+  const rx_lng = rx_lat_lng.lng;
+  
+  // Calculate the difference in longitude
+  const lng_diff = Math.abs(tx_lng - rx_lng);
+  
+  // If the difference is greater than 180°, we should go the other way
+  if (lng_diff > 180) {
+    let adjusted_rx_lng = rx_lng;
+    
+    // If transmitter is on the right side (positive longitude near +180)
+    // and receiver is on the left side (negative longitude near -180)
+    if (tx_lng > 0 && rx_lng < 0) {
+      adjusted_rx_lng = rx_lng + 360;
+    }
+    // If transmitter is on the left side (negative longitude near -180)
+    // and receiver is on the right side (positive longitude near +180)
+    else if (tx_lng < 0 && rx_lng > 0) {
+      adjusted_rx_lng = rx_lng - 360;
+    }
+    
+    return L.latLng(rx_lat_lng.lat, adjusted_rx_lng);
+  }
+  
+  // No adjustment needed
+  return rx_lat_lng;
+}
+
 // Parses a UTC timestamp string like '2025-07-15 12:00:00' to a Date() object
 function parseTimestamp(ts_str) {
   ts = new Date(Date.parse(ts_str.replace(' ', 'T') + 'Z'));
@@ -1189,8 +1220,12 @@ function onMarkerClick(e) {
     marker.rx_segments = [];
     spot.slots[0].rx.forEach(r => {
       let rx_lat_lon = maidenheadToLatLon(r.grid);
+      
+      // Adjust receiver coordinates to avoid long lines across the map
+      let adjusted_rx_lat_lon = adjustReceiverCoords(marker.getLatLng(), L.latLng(rx_lat_lon));
+      
       let rx_marker = L.circleMarker(
-        rx_lat_lon,
+        adjusted_rx_lat_lon,
         {
           radius: 6, color: 'black',
           fillColor: 'yellow', weight: 1, stroke: true,
@@ -1204,7 +1239,8 @@ function onMarkerClick(e) {
         `${r.cs} ${formatDistance(dist)} ${r.snr} dBm`,
         { direction: 'top', opacity: 0.8 });
       marker.rx_markers.push(rx_marker);
-      let segment = L.polyline([marker.getLatLng(), rx_lat_lon],
+      
+      let segment = L.polyline([marker.getLatLng(), adjusted_rx_lat_lon],
         { weight: 1.4, color: 'blue' }).addTo(map).bringToBack();
       marker.rx_segments.push(segment);
     });
@@ -2288,7 +2324,9 @@ function Run() {
   map = L.map('map',
     {
       renderer: L.canvas({ tolerance: click_tolerance }),
-      minZoom: 2
+      minZoom: 2,
+      maxBounds: [[-85, -180], [85, 180]],
+      worldCopyJump: false
     });
 
   // Use local English-label tiles for lower levels
@@ -2331,18 +2369,6 @@ function Run() {
     { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
     .addTo(map).bringToBack();
 
-  // Grey out areas beyond the antimeridian to indicate there is no
-  // data there
-  L.polygon([[[-90, -1440], [90, -1440], [90, -180], [-90, -180]]], {
-    fillColor: 'black', fillOpacity: 0.12, stroke: false,
-    interactive: false
-  }).addTo(map);
-
-  L.polygon([[[-90, 180], [90, 180], [90, 1440], [-90, 1440]]], {
-    fillColor: 'black', fillOpacity: 0.12, stroke: false,
-    interactive: false
-  }).addTo(map);
-
 
   // Draw the equator
   L.polyline([[0, -180], [0, 180]],
@@ -2354,12 +2380,6 @@ function Run() {
     const center = map.getCenter();
     localStorage.setItem('lat', center.lat);
     localStorage.setItem('lon', center.lng);
-
-    // Readjust the map when moving across the antimeridian
-    const wrapped_center = map.wrapLatLng(center);
-    if (Math.abs(center.lng - wrapped_center.lng) > 1e-8) {
-      map.setView(wrapped_center, map.getZoom(), { animate: false });
-    }
   });
   map.on('zoomend', function () {
     localStorage.setItem('zoom_level', map.getZoom());
