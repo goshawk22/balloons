@@ -1047,7 +1047,7 @@ function displayTrack() {
           [spot.lat, spot.lon]) > 200000)) {
         marker = L.circleMarker([spot.lat, spot.lon],
           {
-            radius: 5, color: 'black', fillColor: 'white', weight: 1,
+            radius: 4, color: 'black', fillColor: 'white', weight: 1,
             stroke: true, fillOpacity: 1
           });
       }
@@ -1064,7 +1064,7 @@ function displayTrack() {
       }
       marker = L.circleMarker([spot.lat, spot.lon],
         {
-          radius: 7, color: 'black', fillColor: '#add8e6', weight: 1,
+          radius: 5, color: 'black', fillColor: '#add8e6', weight: 1,
           stroke: true, fillOpacity: 1
         });
     } else if (spot.grid.length == 8) {
@@ -1080,7 +1080,7 @@ function displayTrack() {
       }
       marker = L.circleMarker([spot.lat, spot.lon],
         {
-          radius: 8, color: 'black', fillColor: '#87ceeb', weight: 1,
+          radius: 7, color: 'black', fillColor: '#87ceeb', weight: 1,
           stroke: true, fillOpacity: 1
         });
     }
