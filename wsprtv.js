@@ -1029,10 +1029,7 @@ function displayTrack() {
     let spot = spots[i];
     if (spot.lat == undefined || spot.lon == undefined) continue;
 
-    if (params.tracker != 'unknown' && last_marker &&
-      last_marker.getLatLng().distanceTo(
-        [spot.lat, spot.lon]) / 1000 >
-      300 * Math.max(1800, (spot.ts - last_marker.spot.ts) / 1000) / 3600) {
+    if (spot.cspeed && spot.cspeed > 300) {
       // Spot is too far from previous marker to be feasible (over 300 km/h
       // speed needed to connect). Ignore.
       if (debug > 0) console.log('Filtering out an impossible spot');
@@ -1774,8 +1771,20 @@ function computeDerivedData(spots) {
             var currentLon = spot.lon;
           }
 
+          if (previousGrid.length === 8 && currentGrid.length === 6) {
+            // If previous was 8-char and current is 6-char, truncate previous to 6-char for calculation
+            previousGrid = previousGrid.substring(0, 6);
+            // Recalculate lat/lon using 6-char grid for speed calculation
+            let [lat6, lon6] = maidenheadToLatLon(previousGrid);
+            var previousLat = lat6;
+            var previousLon = lon6;
+          } else {
+            var previousLat = last_good_spot.lat;
+            var previousLon = last_good_spot.lon;
+          }
+
           // Calculate cspeed (computed speed) using lat/lon from grid squares
-          let dist = L.latLng(last_good_spot.lat, last_good_spot.lon)
+          let dist = L.latLng(previousLat, previousLon)
             .distanceTo([currentLat, currentLon]) / 1000;
           let ts_delta = (spot.ts - last_good_spot.ts) || 1;
 
