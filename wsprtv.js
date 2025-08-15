@@ -1953,10 +1953,15 @@ function showDataView() {
     if (supplementary_data[`et${i}`]) {
       const [label, long_label, units, formatter] =
         getExtendedTelemetryAttributes(i);
+      
+      // Don't show a graph for the "Loc" field
+      const shouldShowGraph = label !== 'Loc';
+      
       data_fields.push([`et${i}`,
       {
         'label': label, 'long_label': long_label, 'units': units,
-        'formatter': formatter, 'graph': {}
+        'formatter': formatter, 
+        ...(shouldShowGraph ? { 'graph': {} } : {})
       }]);
     }
   }
