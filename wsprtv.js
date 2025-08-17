@@ -2489,9 +2489,9 @@ function populatePresetDropdown() {
   }
 
   // Add preset options
-  presets.forEach((preset, index) => {
+  presets.forEach((preset) => {
     const option = document.createElement('option');
-    option.value = index;
+    option.value = preset.name;
     option.textContent = preset.name;
     presetSelect.appendChild(option);
   });
@@ -2557,8 +2557,8 @@ function setupPresetEventListeners() {
     }
 
     // Preset selected
-    const presetIndex = parseInt(this.value);
-    const preset = presets[presetIndex];
+    const presetName = this.value;
+    const preset = presets.find(p => p.name === presetName);
 
     if (preset) {
       // Apply preset values
@@ -2590,9 +2590,9 @@ function checkUrlParametersForPreset() {
 
   if (presetParam) {
     // Preset specified in URL
-    const presetIndex = parseInt(presetParam);
-    if (!isNaN(presetIndex) && presetIndex >= 0 && presetIndex < presets.length) {
-      document.getElementById('preset').value = presetIndex;
+    const preset = presets.find(p => p.name === presetParam);
+    if (preset) {
+      document.getElementById('preset').value = presetParam;
       // Trigger the change event to apply the preset
       document.getElementById('preset').dispatchEvent(new Event('change'));
       return;
@@ -2601,7 +2601,7 @@ function checkUrlParametersForPreset() {
 
   // If no valid preset parameter found, default to first preset if available
   if (presets.length > 0) {
-    document.getElementById('preset').value = 0;
+    document.getElementById('preset').value = presets[0].name;
     document.getElementById('preset').dispatchEvent(new Event('change'));
   }
 }
