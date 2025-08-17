@@ -53,6 +53,7 @@ let et_labels_param;
 let et_llabels_param;
 let et_units_param;
 let et_res_param;
+let scaleVoltage_param;
 
 let last_update_ts;
 let next_update_ts;
@@ -287,7 +288,7 @@ function parseParams() {
     'cs': cs, 'ch': ch, 'band': band, 'tracker': tracker,
     'start_date': start_date, 'end_date': end_date,
     'fetch_et': fetch_et, 'units': units,
-    'detail': detail, 'et_spec': et_spec
+    'detail': detail, 'et_spec': et_spec, 'scaleVoltage': scaleVoltage_param
   };
 }
 
@@ -686,7 +687,11 @@ function processU4BSlot1Message(spot) {
   }
   // Fill values
   spot.speed = (Math.floor(n / 4) % 42) * 2 * 1.852;
-  spot.voltage = ((Math.floor(n / 168) + 20) % 40) * 0.05 + 3;
+  let voltage = ((Math.floor(n / 168) + 20) % 40) * 0.05 + 3;
+  if (params.scaleVoltage) {
+    voltage -= 2;
+  }
+  spot.voltage = voltage;
   spot.temp = (Math.floor(n / 6720) % 90) - 50;
   spot.grid = grid;
   spot.altitude = altitude;
@@ -2541,6 +2546,13 @@ function setupPresetEventListeners() {
       startDateInput.value = '';
       endDateInput.value = '';
       configInfo.innerHTML = '';
+      // Clear extended telemetry parameters
+      et_dec_param = '';
+      et_labels_param = '';
+      et_llabels_param = '';
+      et_units_param = '';
+      et_res_param = '';
+      scaleVoltage_param = false;
       return;
     }
 
@@ -2567,6 +2579,7 @@ function setupPresetEventListeners() {
       et_llabels_param = preset.et_llabels || '';
       et_units_param = preset.et_units || '';
       et_res_param = preset.et_res || '';
+      scaleVoltage_param = preset.scaleVoltage || false;
     }
   });
 }
