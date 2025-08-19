@@ -45,7 +45,6 @@ let debug = 0;  // controls console logging
 
 // URL-only parameters
 let end_date_param;
-let dnu_param;  // dnu = do not update
 
 // Extended telemetry URL params
 let et_dec_param;
@@ -300,9 +299,9 @@ function getU4BSlotMinute(slot) {
 
 // Create a wspr.live SQL clause corresponding to desired date range
 function createQueryDateRange(incremental_update = false) {
-  if (incremental_update) {
+  if (incremental_update && last_update_ts) {
     // Fetch up to 6 hours prior to last update timestamp
-    let cutoff_ts = last_update_ts;
+    let cutoff_ts = new Date(last_update_ts);
     cutoff_ts.setHours(cutoff_ts.getHours() - 6);
     const cutoff_ts_str = formatTimestamp(cutoff_ts);
     return `time > '${cutoff_ts_str}:00'`;
@@ -1441,33 +1440,28 @@ function scheduleNextUpdate() {
     nextEvenMinute = currentMinute + 2; // If we're past the start of current even minute, use next one
   }
 
+
+  // Create the next update timestamp (packet end + 40 seconds)
+  next_update_ts = new Date(now);
+
   // Handle minute rollover
   if (nextEvenMinute >= 60) {
     nextEvenMinute = nextEvenMinute % 60;
+    next_update_ts.setUTCHours(next_update_ts.getUTCHours() + 1);
   }
 
-  // Calculate the end time of the next packet (packet start + 2 minutes)
-  let packetEndMinute = (nextEvenMinute + 2) % 60;
-
-  // Create the next update timestamp (packet end + 30 seconds)
-  next_update_ts = new Date(now);
-  next_update_ts.setUTCMinutes(packetEndMinute);
-  next_update_ts.setUTCSeconds(30 + Math.floor(Math.random() * 10000)); // 30 seconds after packet ends plus random delay
+  next_update_ts.setUTCMinutes(nextEvenMinute);
+  next_update_ts.setUTCSeconds(40); // 40 seconds after packet ends
   next_update_ts.setUTCMilliseconds(0);
 
-  // If the calculated time is in the past or too soon (less than 30 seconds away), 
+  // If the calculated time is in the past or too soon (less than 10 seconds away), 
   // schedule for the next packet cycle
-  if (next_update_ts <= now || (next_update_ts - now) < 30000) {
-    next_update_ts.setUTCMinutes((packetEndMinute + 2) % 60);
-
-    // Handle hour rollover
-    if (packetEndMinute + 2 >= 60) {
-      next_update_ts.setUTCHours(next_update_ts.getUTCHours() + 1);
-    }
+  if (next_update_ts <= now || (next_update_ts - now) < 10000) {
+    next_update_ts.setUTCMinutes((nextEvenMinute + 2) % 60);
   }
 
-  // Add small randomization (0-10 seconds) to avoid hitting servers simultaneously
-  const randomDelay = Math.floor(Math.random() * 10000);
+  // Add small randomization (0-5 seconds) to avoid hitting servers simultaneously
+  const randomDelay = Math.floor(Math.random() * 5000);
   next_update_ts = new Date(next_update_ts.getTime() + randomDelay);
 
   if (debug > 0) {
@@ -1567,9 +1561,8 @@ async function update(incremental_update = false) {
     const now = new Date();
     last_update_ts = now;
 
-    if (incremental_update ||
-      (!dnu_param && now - params.end_date < 86400 * 1000)) {
-      // Only schedule updates for current flights
+    // Schedule automatic updates only for current flights (within 24 hours)
+    if (now - params.end_date < 86400 * 1000) {
       scheduleNextUpdate();
     }
   } catch (error) {
@@ -2328,7 +2321,6 @@ function Run() {
 
   end_date_param = getUrlParameter('end_date');
   units_param = getUrlParameter('units');
-  dnu_param = getUrlParameter('dnu');
   et_dec_param = getUrlParameter('et_dec') || 'et0:0_1101:0:1,100:0:1,101:0:10,41:0:1';
   et_labels_param = getUrlParameter('et_labels') || 'Pres,Loc,Uptime,NumSats';
   et_llabels_param = getUrlParameter('et_llabels') || 'Pressure,,,Number_Of_Satellites';
