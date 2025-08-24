@@ -1,11 +1,25 @@
 [
   {
+    "name": "Pico 9",
+    "callsign": "M7GAQ",
+    "channel": "195E",
+    "band": "20m",
+    "start_date": "2025-08-24",
+    "end_date": "",
+    "et_dec": "et0:0_351:0:0.5,100:0:1,101:0:10,41:0:1",
+    "et_labels": "Speed,Loc,Uptime,NumSats",
+    "et_llabels": "Speed,,,Number_Of_Satellites",
+    "et_units": " kmph,, min",
+    "et_res": "",
+    "scaleVoltage": false
+  },
+  {
     "name": "Pico 8",
     "callsign": "M7GAQ",
     "channel": "226E",
     "band": "10m",
     "start_date": "2025-08-22",
-    "end_date": "",
+    "end_date": "2025-08-24",
     "et_dec": "et0:0_1101:0:1,100:0:1,101:0:10,41:0:1",
     "et_labels": "Pres,Loc,Uptime,NumSats",
     "et_llabels": "Pressure,,,Number_Of_Satellites",
