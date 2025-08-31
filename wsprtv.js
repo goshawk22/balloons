@@ -525,22 +525,41 @@ function matchTelemetry(data) {
           // Always a match
           last_spot.slots[slot] = row;
         } else if (params.tracker == 'wb8elk') {
-        if (last_spot.slots[0].grid == row.grid) {
-          last_spot.slots[slot] = row;
-        }
-      } else if (params.tracker == 'u4b') {
-        // U4B frequency matching
-        for (let j = 0; j < slot; j++) {
-          if (last_spot.slots[j] &&
-            findCoreceiver(last_spot.slots[j].rx, row.rx)) {
+          if (last_spot.slots[0].grid == row.grid) {
             last_spot.slots[slot] = row;
-            break;
+          }
+        } else if (params.tracker == 'u4b') {
+          // U4B frequency matching - but also allow matching based on timestamp proximity
+          let matched = false;
+          
+          // First try frequency matching with existing slots
+          for (let j = 0; j < slot; j++) {
+            if (last_spot.slots[j] &&
+              findCoreceiver(last_spot.slots[j].rx, row.rx)) {
+              last_spot.slots[slot] = row;
+              matched = true;
+              break;
+            }
+          }
+          
+          // If frequency matching failed, but we're within a reasonable time window
+          // and this looks like extended telemetry, allow the match
+          if (!matched && slot >= 2 && row.cs && row.cs.length === 6) {
+            try {
+              const [m, n] = extractU4BQ01Payload(row);
+              if (!(n % 2)) { // This is extended telemetry (even n)
+                // Allow the match based on timing alone for extended telemetry
+                last_spot.slots[slot] = row;
+                matched = true;
+              }
+            } catch (e) {
+              // If extraction fails, don't match
+            }
           }
         }
       }
     }
-  }
-  return spots;
+    return spots;
   } catch (error) {
     console.error('Error in matchTelemetry:', error);
     throw error;
