@@ -241,6 +241,12 @@ function parseParams() {
     (localStorage.getItem('units') == 1 ? 1 : 0) :
     (units_param == 'imperial' ? 1 : 0);
   const detail = localStorage.getItem('detail') == 1 ? 1 : 0;
+  
+  // For grid filtering, check the checkbox state if it exists, otherwise use localStorage
+  const gridFilteringCheckbox = document.getElementById('enable_grid_filtering');
+  const enable_grid_filtering = gridFilteringCheckbox ? 
+    gridFilteringCheckbox.checked : 
+    (localStorage.getItem('enable_grid_filtering') !== 'false'); // default true
 
   let cs_regex;
   if (['generic2', 'zachtek2', 'unknown'].includes(tracker)) {
@@ -1081,7 +1087,7 @@ function displayTrack() {
     let marker = null;
     if (spot.grid.length < 6) {
       // Grid4 spot
-      if (params.tracker == 'unknown' || !last_marker ||
+      if (!params.enable_grid_filtering || params.tracker == 'unknown' || !last_marker ||
         (spot.ts - last_marker.spot.ts > 2 * 3600 * 1000) ||
         (last_marker.getLatLng().distanceTo(
           [spot.lat, spot.lon]) > 200000)) {
@@ -1093,12 +1099,13 @@ function displayTrack() {
       }
     } else if (spot.grid.length == 6) {
       // Grid6 spot
-      if (params.tracker != 'unknown' &&
+      if (params.enable_grid_filtering && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 6 &&
         (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
         (last_marker.getLatLng().distanceTo(
           [spot.lat, spot.lon]) < 200000)) {
         // Remove last grid4 marker
+        if (debug > 0) console.log('Removing grid4 marker due to grid6 spot');
         marker_group.removeLayer(last_marker);
         markers.pop();
       }
@@ -1109,12 +1116,13 @@ function displayTrack() {
         });
     } else if (spot.grid.length == 8) {
       // Grid8 spot - only display if we already have a grid6 marker
-      if (params.tracker != 'unknown' &&
+      if (params.enable_grid_filtering && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 8 &&
         (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
         (last_marker.getLatLng().distanceTo(
           [spot.lat, spot.lon]) < 200000)) {
         // Remove last lower-precision marker
+        if (debug > 0) console.log('Removing lower precision marker due to grid8 spot');
         marker_group.removeLayer(last_marker);
         markers.pop();
       }
@@ -2743,6 +2751,30 @@ function setupPresetEventListeners() {
   const savedOrphanedPref = localStorage.getItem('show_orphaned_telemetry');
   if (savedOrphanedPref !== null) {
     orphanedTelemetryCheckbox.checked = savedOrphanedPref === 'true';
+  } // Default is checked (as set in HTML)
+
+  // Grid filtering checkbox event listener
+  const gridFilteringCheckbox = document.getElementById('enable_grid_filtering');
+  gridFilteringCheckbox.addEventListener('change', function () {
+    // Save preference
+    localStorage.setItem('enable_grid_filtering', this.checked.toString());
+    
+    // Update the params object directly
+    if (params) {
+      params.enable_grid_filtering = this.checked;
+      if (debug > 0) console.log('Grid filtering changed to:', this.checked);
+    }
+    
+    // Refresh the map to apply/remove grid filtering
+    if (spots && spots.length > 0) {
+      displayTrack();
+    }
+  });
+
+  // Restore grid filtering preference
+  const savedGridFilteringPref = localStorage.getItem('enable_grid_filtering');
+  if (savedGridFilteringPref !== null) {
+    gridFilteringCheckbox.checked = savedGridFilteringPref === 'true';
   } // Default is checked (as set in HTML)
 
   presetSelect.addEventListener('change', function () {
