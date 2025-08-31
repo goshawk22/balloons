@@ -19,19 +19,36 @@ html, body {
 
 #search_line {
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#form_line1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 #preset {
-  margin-right: 10px;
   border: 1px solid #ccc;
   border-radius: 3px;
   padding: 2px 4px;
   font-size: 14px;
+  width: 200px;
 }
 
-#notifications_enabled {
+#go_button {
+  width: 50px;
+}
+
+#search_line input[type="checkbox"] {
   margin-right: 5px;
-  vertical-align: middle;
+}
+
+#config_info {
+  color: #666;
+  font-size: 12px;
 }
 
 #search_line label {
@@ -39,6 +56,10 @@ html, body {
   font-weight: normal;
   cursor: pointer;
   user-select: none;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 #search_line label:hover {

@@ -499,31 +499,32 @@ function findCoreceiver(rx1, rx2) {
 // Returns a list of spots, with each spot having one or more messages
 // attached.
 function matchTelemetry(data) {
-  let spots = [];
+  try {
+    let spots = [];
 
-  let starting_minute = getU4BSlotMinute(0);
-  let last_spot;
+    let starting_minute = getU4BSlotMinute(0);
+    let last_spot;
 
-  for (let i = 0; i < data.length; i++) {
-    row = data[i];
-    if (params.tracker == 'unknown') {
-      spots.push({ 'slots': [row] });
-      continue;
-    }
-    const slot = (((row.ts.getMinutes() - starting_minute) + 10) % 10) / 2;
-    if (slot == 0) {
-      if (!last_spot || last_spot.slots[0].ts != row.ts) {
-        // New spot
-        last_spot = { 'slots': [row] };
-        spots.push(last_spot);
+    for (let i = 0; i < data.length; i++) {
+      row = data[i];
+      if (params.tracker == 'unknown') {
+        spots.push({ 'slots': [row] });
+        continue;
       }
-    } else if (last_spot && row.ts - last_spot.slots[0].ts < 10 * 60 * 1000 &&
-      !last_spot.slots[slot]) {
-      // Same TX sequence as last spot, try to attach the row
-      if (params.tracker == 'zachtek2' || params.tracker == 'generic2') {
-        // Always a match
-        last_spot.slots[slot] = row;
-      } else if (params.tracker == 'wb8elk') {
+      const slot = (((row.ts.getMinutes() - starting_minute) + 10) % 10) / 2;
+      if (slot == 0) {
+        if (!last_spot || last_spot.slots[0].ts != row.ts) {
+          // New spot
+          last_spot = { 'slots': [row] };
+          spots.push(last_spot);
+        }
+      } else if (last_spot && row.ts - last_spot.slots[0].ts < 10 * 60 * 1000 &&
+        !last_spot.slots[slot]) {
+        // Same TX sequence as last spot, try to attach the row
+        if (params.tracker == 'zachtek2' || params.tracker == 'generic2') {
+          // Always a match
+          last_spot.slots[slot] = row;
+        } else if (params.tracker == 'wb8elk') {
         if (last_spot.slots[0].grid == row.grid) {
           last_spot.slots[slot] = row;
         }
@@ -540,6 +541,10 @@ function matchTelemetry(data) {
     }
   }
   return spots;
+  } catch (error) {
+    console.error('Error in matchTelemetry:', error);
+    throw error;
+  }
 }
 
 // Convert a Maidenhead grid reference of arbitrary previcision to lat/long.
@@ -729,7 +734,12 @@ function processWB8ELKSlot1Message(spot) {
 
 // Annotates telemetry spots (appends lat, lon, speed, etc)
 function decodeSpots() {
-  spots = spots.filter(spot => decodeSpot(spot));
+  try {
+    spots = spots.filter(spot => decodeSpot(spot));
+  } catch (error) {
+    console.error('Error in decodeSpots:', error);
+    throw error;
+  }
 }
 
 // Decodes and annotates a spot
@@ -948,9 +958,17 @@ function getRXStats(spot) {
       }
     }
   }
-  const lat_lon = L.latLng([spot.lat, spot.lon]);
-  const max_rx_dist = Math.max(...Object.keys(grids).map(grid =>
-    lat_lon.distanceTo(maidenheadToLatLon(grid))));
+  
+  // Handle orphaned spots that don't have lat/lon
+  let max_rx_dist = 0;
+  if (spot.lat !== undefined && spot.lat !== null && 
+      spot.lon !== undefined && spot.lon !== null && 
+      Object.keys(grids).length > 0) {
+    const lat_lon = L.latLng([spot.lat, spot.lon]);
+    max_rx_dist = Math.max(...Object.keys(grids).map(grid =>
+      lat_lon.distanceTo(maidenheadToLatLon(grid))));
+  }
+  
   return [Object.keys(cs).length, max_rx_dist, max_snr];
 }
 
@@ -1021,24 +1039,25 @@ function clearTrack() {
 
 // Draws the track on the map
 function displayTrack() {
-  clearTrack();
-  marker_group = L.featureGroup();
-  segment_group = L.featureGroup();
+  try {
+    clearTrack();
+    marker_group = L.featureGroup();
+    segment_group = L.featureGroup();
 
-  // To reduce clutter, we only show grid4 markers if they are more than
-  // 200km and/or 2 hours from adjacent grid6 markers. In other words, we only
-  // display grid4 markers if there are no good adjacent grid6 markers to show
-  // instead.
-  for (let i = 0; i < spots.length; i++) {
-    let spot = spots[i];
-    if (spot.lat == undefined || spot.lon == undefined) continue;
+    // To reduce clutter, we only show grid4 markers if they are more than
+    // 200km and/or 2 hours from adjacent grid6 markers. In other words, we only
+    // display grid4 markers if there are no good adjacent grid6 markers to show
+    // instead.
+    for (let i = 0; i < spots.length; i++) {
+      let spot = spots[i];
+      if (spot.lat == undefined || spot.lon == undefined) continue;
 
-    if (spot.cspeed && spot.cspeed > 300) {
-      // Spot is too far from previous marker to be feasible (over 300 km/h
-      // speed needed to connect). Ignore.
-      if (debug > 0) console.log('Filtering out an impossible spot');
-      continue;
-    }
+      if (spot.cspeed && spot.cspeed > 300) {
+        // Spot is too far from previous marker to be feasible (over 300 km/h
+        // speed needed to connect). Ignore.
+        if (debug > 0) console.log('Filtering out an impossible spot');
+        continue;
+      }
 
     let marker = null;
     if (spot.grid.length < 6) {
@@ -1186,6 +1205,10 @@ function displayTrack() {
   marker_group.on('mouseover', onMarkerMouseover);
   marker_group.on('mouseout', onMarkerMouseout);
   marker_group.on('click', onMarkerClick);
+  } catch (error) {
+    console.error('Error in displayTrack:', error);
+    throw error;
+  }
 }
 
 function onMarkerMouseover(e) {
@@ -1638,20 +1661,43 @@ const kDataFields = [
     'color': '#7b5d45',
     'type': 'timestamp'
   }],
-  ['grid', { 'align': 'left' }],
+  ['grid', { 
+    'align': 'left',
+    'formatter': (v, au) => v || '(No Location)'
+  }],
   ['lat', {
     'label': 'Lat',
     'color': '#0066cc',
     'type': 'angle',
-    'formatter': (v, au) => `${v.toFixed(6)}` + (au ? '°' : '')
+    'formatter': (v, au) => {
+      if (v === undefined || v === null) return '(No Location)';
+      try {
+        return `${v.toFixed(6)}` + (au ? '°' : '');
+      } catch (e) {
+        return '(Invalid)';
+      }
+    }
   }],
   ['lon', {
     'label': 'Lon',
     'color': '#0066cc',
     'type': 'angle',
-    'formatter': (v, au) => `${v.toFixed(6)}` + (au ? '°' : '')
+    'formatter': (v, au) => {
+      if (v === undefined || v === null) return '(No Location)';
+      try {
+        return `${v.toFixed(6)}` + (au ? '°' : '');
+      } catch (e) {
+        return '(Invalid)';
+      }
+    }
   }],
-  ['altitude', { 'graph': {} }],
+  ['altitude', { 
+    'graph': {},
+    'formatter': (v, au) => {
+      if (v === undefined || v === null) return '(No Location)';
+      return formatAltitude(v, au);
+    }
+  }],
   ['vspeed', {
     'min_detail': 1,
     'label': 'VSpeed',
@@ -1741,7 +1787,12 @@ function computeDerivedData(spots) {
   for (let i = 0; i < spots.length; i++) {
     const spot = spots[i];
     if (['u4b', 'generic1', 'generic2', 'unknown'].includes(params.tracker)) {
-      derived_data['power'][i] = spot.slots[0]['power']
+      // Handle orphaned spots that don't have slot 0
+      if (spot.slots && spot.slots[0]) {
+        derived_data['power'][i] = spot.slots[0]['power'];
+      } else {
+        derived_data['power'][i] = undefined;
+      }
     }
     if (i > 0) {
       if (last_altitude_spot && spot.altitude) {
@@ -1751,7 +1802,9 @@ function computeDerivedData(spots) {
           ((spot.ts - last_altitude_spot.ts) || 1);
       }
       let currentSats = spot.et && spot.et[3] !== undefined ? spot.et[3] : null;
-      if (params.tracker != 'unknown' && spot.grid.length >= 6 && currentSats !== 0) {
+      if (params.tracker != 'unknown' && spot.grid && spot.grid.length >= 6 && currentSats !== 0 && 
+          spot.lat !== undefined && spot.lat !== null && 
+          spot.lon !== undefined && spot.lon !== null) {
         if (last_good_spot) {
           // If previous window only had 6-figure grid, only use 6-figure grid for current spot
           let currentGrid = spot.grid;
@@ -1810,7 +1863,15 @@ function computeDerivedData(spots) {
       }
     }
     if (spot.altitude) last_altitude_spot = spot;
-    derived_data['sun_elev'][i] = getSunElevation(spot.ts, spot.lat, spot.lon);
+    
+    // Handle orphaned spots that may not have lat/lon
+    if (spot.lat !== undefined && spot.lat !== null && 
+        spot.lon !== undefined && spot.lon !== null) {
+      derived_data['sun_elev'][i] = getSunElevation(spot.ts, spot.lat, spot.lon);
+    } else {
+      derived_data['sun_elev'][i] = undefined;
+    }
+    
     [derived_data['num_rx'][i], derived_data['max_rx_dist'][i],
     derived_data['max_snr'][i]] = getRXStats(spot);
   }
@@ -1913,6 +1974,115 @@ function getExtendedTelemetryAttributes(i) {
   return [label, long_label, units, formatter];
 }
 
+// Create virtual spots for orphaned telemetry data (telemetry without location)
+// Creates orphaned telemetry spots for U4B tracker when telemetry data
+// is received but no corresponding Type 1 (location) message is available
+function createOrphanedTelemetrySpots() {
+  try {
+    // Check if the feature is enabled
+    const showOrphanedCheckbox = document.getElementById('show_orphaned_telemetry');
+    if (!showOrphanedCheckbox || !showOrphanedCheckbox.checked) {
+      return [];
+    }
+    
+    if (params.tracker !== 'u4b' || !data || data.length === 0) {
+      return [];
+    }
+
+    let orphaned_spots = [];
+    let starting_minute = getU4BSlotMinute(0);
+    
+    // Find all data rows that were used in existing spots
+    let used_rows = new Set();
+    spots.forEach(spot => {
+      if (spot.slots) {
+        spot.slots.forEach(slot => {
+          if (slot) used_rows.add(slot);
+        });
+      }
+    });
+
+    // Look for orphaned telemetry data
+    data.forEach(row => {
+      try {
+        if (!used_rows.has(row)) {
+          const slot = (((row.ts.getMinutes() - starting_minute) + 10) % 10) / 2;
+          if (slot >= 1 && slot <= 4) { // Valid slot range
+            // This is orphaned telemetry data, create a virtual spot
+            let orphaned_spot = { 
+              'slots': new Array(5), 
+              'is_orphaned': true,
+              'ts': row.ts,
+              'grid': null,
+              'lat': null,
+              'lon': null,
+              'altitude': null,
+            };
+            orphaned_spot.slots[slot] = row;
+            
+            // Process basic telemetry (slot 1)
+            if (slot === 1 && row.cs && row.cs.length === 6) {
+              try {
+                const [m, n] = extractU4BQ01Payload(row);
+                if (n % 2) { // Valid telemetry message
+                  if (Math.floor(n / 2) % 2) { // Valid GPS bit
+                    orphaned_spot.speed = (Math.floor(n / 4) % 42) * 2 * 1.852;
+                    let voltage = ((Math.floor(n / 168) + 20) % 40) * 0.05 + 3;
+                    if (params.scaleVoltage) {
+                      voltage -= 2;
+                    }
+                    orphaned_spot.voltage = voltage;
+                    orphaned_spot.temp = (Math.floor(n / 6720) % 90) - 50;
+                    orphaned_spot.altitude = (m % 1068) * 20;
+                  }
+                }
+              } catch (e) {
+                if (debug > 0) console.error('Error processing basic telemetry:', e);
+              }
+            }
+            
+            // Process extended telemetry (slot 2+)
+            if (slot >= 2 && row.cs && row.cs.length === 6) {
+              try {
+                const [m, n] = extractU4BQ01Payload(row);
+                if (!(n % 2)) { // Extended telemetry message
+                  const v = Math.floor((m * 615600 + n) / 2);
+                  if (!orphaned_spot.raw_et) {
+                    orphaned_spot.raw_et = [];
+                  }
+                  orphaned_spot.raw_et[slot] = v;
+                }
+              } catch (e) {
+                if (debug > 0) console.error('Error processing extended telemetry:', e);
+              }
+            }
+            
+            orphaned_spots.push(orphaned_spot);
+          }
+        }
+      } catch (e) {
+        if (debug > 0) console.error('Error processing data row:', e);
+      }
+    });
+
+    // Process extended telemetry for orphaned spots
+    orphaned_spots.forEach(spot => {
+      try {
+        if (spot.raw_et && params.et_spec) {
+          decodeExtendedTelemetry(spot);
+        }
+      } catch (e) {
+        if (debug > 0) console.error('Error decoding extended telemetry:', e);
+      }
+    });
+
+    return orphaned_spots;
+  } catch (e) {
+    if (debug > 0) console.error('Error in createOrphanedTelemetrySpots:', e);
+    return [];
+  }
+}
+
 function showDataView() {
   clearDataView();
 
@@ -1933,15 +2103,24 @@ function showDataView() {
   notice.style.marginBottom = '20px';
   div.appendChild(notice);
 
+  // Create combined spots array including orphaned telemetry
+  let orphaned_spots = createOrphanedTelemetrySpots();
+  let combined_spots = orphaned_spots.length > 0 ? [...spots, ...orphaned_spots] : spots;
+  
+  // Sort by timestamp if we have orphaned spots
+  if (orphaned_spots.length > 0) {
+    combined_spots.sort((a, b) => a.ts - b.ts);
+  }
+
   let supplementary_data =
   {
-    ...computeDerivedData(spots),
-    ...extractExtendedTelemetryData(spots)
+    ...computeDerivedData(combined_spots),
+    ...extractExtendedTelemetryData(combined_spots)
   };
 
   // Find the union of all present fields
   const present_spot_fields = Object.fromEntries(
-    [...new Set(spots.flatMap(Object.keys))].map(f => [f, 1]));
+    [...new Set(combined_spots.flatMap(Object.keys))].map(f => [f, 1]));
   const present_supplementary_fields = Object.fromEntries(
     Object.keys(supplementary_data).map(f => [f, 1]));
   let present_fields = Object.fromEntries(
@@ -1952,14 +2131,14 @@ function showDataView() {
   let table_headers = ['#'];
   let long_headers = ['#'];
   let table_data = [Array.from(
-    { length: spots.length }, (_, i) => i + 1)];
+    { length: combined_spots.length }, (_, i) => i + 1)];
   let field_specs = [{}];
   let table_formatters = [null];
   let table_fetchers = [null];
 
   let graph_labels = [];
   let graph_data_indices = [];  // indices into table_data
-  const ts_values = spots.map(spot => spot.ts.getTime() / 1000);
+  const ts_values = combined_spots.map(spot => spot.ts.getTime() / 1000);
 
   // Add ET to the list of possible fields
   let data_fields = [...kDataFields];
@@ -2037,7 +2216,7 @@ function showDataView() {
     if (supplementary_data[field]) {
       field_data = supplementary_data[field];
     } else {
-      field_data = spots.map(spot =>
+      field_data = combined_spots.map(spot =>
         spot[field] == undefined ?
           undefined : (spec.fetcher ?
             spec.fetcher(spot[field]) : spot[field]));
@@ -2083,7 +2262,7 @@ function showDataView() {
     createPrettyButton('Export CSV',
       () => downloadCSV(long_headers, table_data, table_formatters)));
   div.appendChild(
-    createPrettyButton('Get Raw Data', () => downloadJSON(spots)));
+    createPrettyButton('Get Raw Data', () => downloadJSON(combined_spots)));
 
   // Populate the table
   let table = document.createElement('table');
@@ -2528,6 +2707,24 @@ function setupPresetEventListeners() {
       notifications_enabled = true;
     }
   }
+
+  // Orphaned telemetry checkbox event listener
+  const orphanedTelemetryCheckbox = document.getElementById('show_orphaned_telemetry');
+  orphanedTelemetryCheckbox.addEventListener('change', function () {
+    // Save preference
+    localStorage.setItem('show_orphaned_telemetry', this.checked.toString());
+    
+    // Refresh the data view to show/hide orphaned telemetry
+    if (spots && spots.length > 0) {
+      showDataView();
+    }
+  });
+
+  // Restore orphaned telemetry preference
+  const savedOrphanedPref = localStorage.getItem('show_orphaned_telemetry');
+  if (savedOrphanedPref !== null) {
+    orphanedTelemetryCheckbox.checked = savedOrphanedPref === 'true';
+  } // Default is checked (as set in HTML)
 
   presetSelect.addEventListener('change', function () {
     if (this.value === '') {

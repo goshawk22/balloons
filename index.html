@@ -19,16 +19,20 @@
   <div id="control_panel">
     <div id="search_line">
       <span id="form_line1">
-        <select id="preset" style="width: 200px">
+        <select id="preset">
           <option value="">Select Preset...</option>
         </select>
-        <button id="go_button" style="width: 50px">Go</button>
-        <label style="margin-left: 10px; font-size: 12px;">
-          <input type="checkbox" id="notifications_enabled" style="margin-right: 5px;">
+        <button id="go_button">Go</button>
+        <label>
+          <input type="checkbox" id="notifications_enabled">
           Notifications
         </label>
+        <label>
+          <input type="checkbox" id="show_orphaned_telemetry" checked>
+          Show orphaned telemetry
+        </label>
       </span>
-      <span id="config_info" style="color: #666; font-size: 12px; margin-left: 10px;"></span>
+      <span id="config_info" style="color: #666; font-size: 12px;"></span>
       <!-- Hidden inputs for form compatibility -->
       <input type="hidden" id="cs">
       <input type="hidden" id="ch">
