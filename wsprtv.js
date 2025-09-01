@@ -56,6 +56,8 @@ let scaleVoltage_param;
 
 let last_update_ts;
 let next_update_ts;
+let last_heard_ts;  // timestamp of the most recent packet of any type
+let last_telemetry_ts;  // timestamp of the most recent telemetry spot
 
 let update_task;  // telemetry / map update task
 
@@ -1159,6 +1161,19 @@ function displayTrack() {
   if (markers.length > 0) {
     const last_spot = last_marker.spot;
     const duration = formatDuration(last_marker.spot.ts, markers[0].spot.ts);
+
+    // For telemetry data, find the most recent spot with telemetry data
+    let telemetry_spot = last_marker.spot;
+    if (spots && spots.length > 0) {
+      // Look for the most recent spot with telemetry data, working backwards
+      for (let i = spots.length - 1; i >= 0; i--) {
+        if (spots[i] && ('altitude' in spots[i] || 'speed' in spots[i] || 'voltage' in spots[i])) {
+          telemetry_spot = spots[i];
+          break;
+        }
+      }
+    }
+
     synopsis.innerHTML = `Duration: <b>${duration}</b>`;
     if (params.tracker != 'unknown') {
       // Distance is a clickable link to switch units
@@ -1170,21 +1185,40 @@ function displayTrack() {
     }
     synopsis.innerHTML += ` • <b>${markers.length}</b> map spot` +
       ((markers.length > 1) ? 's' : '');
-    if ('altitude' in last_spot) {
+    
+    // Use the telemetry spot for sensor information
+    if ('altitude' in telemetry_spot) {
       synopsis.innerHTML += ' • Last altitude: <b>' +
-        formatAltitude(last_spot.altitude) + '</b>';
+        formatAltitude(telemetry_spot.altitude) + '</b>';
     }
-    if ('speed' in last_spot) {
+    if ('speed' in telemetry_spot) {
       synopsis.innerHTML +=
-        ` • Last speed: <b>${formatSpeed(last_spot.speed)}</b>`;
+        ` • Last speed: <b>${formatSpeed(telemetry_spot.speed)}</b>`;
     }
-    if ('voltage' in last_spot) {
+    if ('voltage' in telemetry_spot) {
       synopsis.innerHTML +=
-        ` • Last voltage: <b>${formatVoltage(last_spot.voltage)}</b>`;
+        ` • Last voltage: <b>${formatVoltage(telemetry_spot.voltage)}</b>`;
     }
-    const last_age = formatDuration(new Date(), last_spot.ts);
+    
+    const last_age = formatDuration(new Date(), telemetry_spot.ts);
     synopsis.innerHTML += ` • <b>(<span id='last_age'>${last_age}` +
       `</span> ago)</b>`;
+    
+    // Store the telemetry timestamp globally for periodic updates
+    last_telemetry_ts = telemetry_spot.ts;
+    
+    // Find the most recent packet timestamp from all data
+    last_heard_ts = null;
+    if (data && data.length > 0) {
+      // data array is sorted by timestamp, so the last entry has the most recent timestamp
+      last_heard_ts = data[data.length - 1].ts;
+    }
+    
+    // Add Last heard information after the telemetry age
+    if (last_heard_ts) {
+      const last_heard_age = formatDuration(new Date(), last_heard_ts);
+      synopsis.innerHTML += ` • Last heard: <b><span id='last_heard_age'>${last_heard_age}</span> ago</b>`;
+    }
   } else {
     synopsis.innerHTML = '<b>0</b> spots';
   }
@@ -2641,8 +2675,14 @@ function Run() {
 
     // Update the "Last ago" timestamp
     let last_age = document.getElementById('last_age');
-    if (last_age && last_marker) {
-      last_age.innerHTML = formatDuration(new Date(), last_marker.spot.ts);
+    if (last_age && last_telemetry_ts) {
+      last_age.innerHTML = formatDuration(new Date(), last_telemetry_ts);
+    }
+    
+    // Update the "Last heard" timestamp
+    let last_heard_age = document.getElementById('last_heard_age');
+    if (last_heard_age && last_heard_ts) {
+      last_heard_age.innerHTML = formatDuration(new Date(), last_heard_ts);
     }
   }, 20 * 1000);
 
