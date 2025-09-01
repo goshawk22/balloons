@@ -297,6 +297,12 @@ function parseParams() {
   };
 }
 
+// Helper function to check if grid filtering is enabled
+function isGridFilteringEnabled() {
+  const checkbox = document.getElementById('enable_grid_filtering');
+  return checkbox ? checkbox.checked : true; // default true if checkbox not found
+}
+
 // Returns TX minute for given slot in the U4B protocol
 function getU4BSlotMinute(slot) {
   const [starting_minute_offset, _] = kWSPRBandInfo[params.band];
@@ -1087,7 +1093,7 @@ function displayTrack() {
     let marker = null;
     if (spot.grid.length < 6) {
       // Grid4 spot
-      if (!params.enable_grid_filtering || params.tracker == 'unknown' || !last_marker ||
+      if (!isGridFilteringEnabled() || params.tracker == 'unknown' || !last_marker ||
         (spot.ts - last_marker.spot.ts > 2 * 3600 * 1000) ||
         (last_marker.getLatLng().distanceTo(
           [spot.lat, spot.lon]) > 200000)) {
@@ -1099,7 +1105,7 @@ function displayTrack() {
       }
     } else if (spot.grid.length == 6) {
       // Grid6 spot
-      if (params.enable_grid_filtering && params.tracker != 'unknown' &&
+      if (isGridFilteringEnabled() && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 6 &&
         (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
         (last_marker.getLatLng().distanceTo(
@@ -1116,7 +1122,7 @@ function displayTrack() {
         });
     } else if (spot.grid.length == 8) {
       // Grid8 spot - only display if we already have a grid6 marker
-      if (params.enable_grid_filtering && params.tracker != 'unknown' &&
+      if (isGridFilteringEnabled() && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 8 &&
         (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
         (last_marker.getLatLng().distanceTo(
@@ -2759,11 +2765,7 @@ function setupPresetEventListeners() {
     // Save preference
     localStorage.setItem('enable_grid_filtering', this.checked.toString());
     
-    // Update the params object directly
-    if (params) {
-      params.enable_grid_filtering = this.checked;
-      if (debug > 0) console.log('Grid filtering changed to:', this.checked);
-    }
+    if (debug > 0) console.log('Grid filtering changed to:', this.checked);
     
     // Refresh the map to apply/remove grid filtering
     if (spots && spots.length > 0) {
