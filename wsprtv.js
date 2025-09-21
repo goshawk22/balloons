@@ -311,6 +311,51 @@ function getU4BSlotMinute(slot) {
   return (starting_minute_offset + ((params.ch % 5) + slot) * 2) % 10;
 }
 
+// Returns frequency in Hz for given U4B channel and band
+function getU4BChannelFrequency(channel, band) {
+  // Base WSPR frequencies for each band (in Hz)
+  const baseBandFrequencies = {
+    '2200m': 137400,
+    '630m': 475600,
+    '160m': 1838000,
+    '80m': 3570000,
+    '60m': 5288600,
+    '40m': 7040000,
+    '30m': 10140100,
+    '20m': 14097000,
+    '17m': 18106000,
+    '15m': 21096000,
+    '12m': 24926000,
+    '10m': 28126000,
+    '6m': 50294400,
+    '4m': 70092400,
+    '2m': 144490400,
+    '70cm': 432301400,
+    '23cm': 1296501400
+  };
+  
+  // Get base frequency for the band
+  const baseFreq = baseBandFrequencies[band];
+  if (!baseFreq) {
+    throw new Error(`Unknown band: ${band}`);
+  }
+  
+  // U4B channels 0-599 are organized into 4 lanes with different offsets
+  // Pattern repeats every 20 channels
+  const positionIn20 = channel % 20;
+  const laneInGroup = Math.floor(positionIn20 / 5);
+  
+  // Lane offsets in Hz (these are the additional offsets from base frequency)
+  const laneOffsets = [
+    20,  // Lane 1: base + 20 Hz
+    60,  // Lane 2: base + 60 Hz
+    140,  // Lane 3: base + 140 Hz
+    180   // Lane 4: base + 180 Hz
+  ];
+  
+  return baseFreq + laneOffsets[laneInGroup];
+}
+
 // Create a wspr.live SQL clause corresponding to desired date range
 function createQueryDateRange(incremental_update = false) {
   if (incremental_update && last_update_ts) {
@@ -353,7 +398,7 @@ function createWSPRLiveQuery(
     `toMinute(time) % 10 IN (${slot_minutes})` : 'true';
   const date_range = createQueryDateRange(incremental_update);
   return `
-    SELECT  /* wsprtv.github.io */
+    SELECT  /* goshawk22.uk/balloon-dashboard */
       time, tx_sign, tx_loc, power,
       groupArray(tuple(rx_sign, rx_loc, frequency, snr))
     FROM wspr.rx
@@ -2074,7 +2119,12 @@ function createOrphanedTelemetrySpots() {
       try {
         if (!used_rows.has(row)) {
           const slot = (((row.ts.getMinutes() - starting_minute) + 10) % 10) / 2;
-          if (slot >= 1 && slot <= 4) { // Valid slot range
+          // Check if frequency is within +-20Hz of expected channel frequency
+          const expectedFreq = getU4BChannelFrequency(params.ch, params.band);
+          const hasValidFreq = row.rx.some(rx => 
+            Math.abs(rx.freq - expectedFreq) <= 20);
+
+          if (slot >= 1 && slot <= 4 && hasValidFreq) { // Valid slot range and frequency
             // This is orphaned telemetry data, create a virtual spot
             let orphaned_spot = { 
               'slots': new Array(5), 
