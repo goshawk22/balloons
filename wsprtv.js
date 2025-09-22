@@ -1440,9 +1440,9 @@ function displayTrack() {
     
     // Find the most recent packet timestamp from all data
     last_heard_ts = null;
-    if (data && data.length > 0) {
+    if (spots && spots.length > 0) {
       // data array is sorted by timestamp, so the last entry has the most recent timestamp
-      last_heard_ts = data[data.length - 1].ts;
+      last_heard_ts = spots[spots.length - 1].ts;
     }
     
     // Add Last heard information after the telemetry age
