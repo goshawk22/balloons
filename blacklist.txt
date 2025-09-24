@@ -1,0 +1,13 @@
+# WSPR TV Receiver Blacklist
+# 
+# This file contains receiver callsigns that should be ignored by the WSPR TV application.
+# Spots received by these stations will be filtered out.
+# Each line should contain one callsign.
+# Lines starting with # are comments and will be ignored.
+# Empty lines are also ignored.
+#
+# Example entries:
+# BADRX1
+# NOISYRX
+# TESTRX
+G0JEI

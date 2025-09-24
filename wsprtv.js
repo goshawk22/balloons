@@ -70,6 +70,10 @@ let is_mobile;  // running on a mobile device
 let notifications_enabled = false;
 let notification_permission_requested = false;
 
+// Blacklist support
+let blacklist = new Set();
+let blacklist_loaded = false;
+
 // WSPR band info. For each band, the value is
 // [U4B starting minute offset, WSPR Live band id].
 const kWSPRBandInfo = {
@@ -425,21 +429,49 @@ async function runQuery(query) {
 // Imports data from wspr.live for further processing:
 // 1) Names the data members
 // 2) Sorts rx reports by callsign
+// 3) Filters out blacklisted receivers
 function importWSPRLiveData(data) {
+  const filteredData = [];
+  let totalReceiversFiltered = 0;
+  let rowsFiltered = 0;
+  
   for (let i = 0; i < data.length; i++) {
     let row = data[i];
-    data[i] = {
-      'ts': parseTimestamp(row[0]),
-      'cs': row[1], 'grid': row[2], 'power': row[3],
-      'rx': row[4].map(
-        rx => ({
-          'cs': rx[0], 'grid': rx[1],
-          'freq': rx[2], 'snr': rx[3]
-        }))
-        .sort((r1, r2) => (r1.cs > r2.cs) - (r1.cs < r2.cs))
-    };
+    const originalRxCount = row[4].length;
+    
+    // Filter out blacklisted receivers
+    const filteredRx = row[4].filter(rx => {
+      if (isCallsignBlacklisted(rx[0])) {
+        if (debug > 0) console.log('Filtered out blacklisted receiver at data level:', rx[0]);
+        totalReceiversFiltered++;
+        return false;
+      }
+      return true;
+    });
+    
+    // Only keep the row if it has at least one valid receiver
+    if (filteredRx.length > 0) {
+      filteredData.push({
+        'ts': parseTimestamp(row[0]),
+        'cs': row[1], 'grid': row[2], 'power': row[3],
+        'rx': filteredRx.map(
+          rx => ({
+            'cs': rx[0], 'grid': rx[1],
+            'freq': rx[2], 'snr': rx[3]
+          }))
+          .sort((r1, r2) => (r1.cs > r2.cs) - (r1.cs < r2.cs))
+      });
+    } else {
+      rowsFiltered++;
+      if (debug > 0) console.log('Filtered out entire data row - no valid receivers');
+    }
   }
-  return data;
+  
+  if (totalReceiversFiltered > 0) {
+    console.log(`Data level filtering: removed ${totalReceiversFiltered} receivers, ${rowsFiltered} complete rows`);
+  }
+  
+  return filteredData;
 }
 
 // Notification functions
@@ -491,6 +523,47 @@ function showNewPacketNotification(new_count, callsign) {
     window.focus();
     notification.close();
   };
+}
+
+// Blacklist functions
+async function loadBlacklist() {
+  if (blacklist_loaded) {
+    return;
+  }
+  
+  try {
+    const response = await fetch('blacklist.txt');
+    if (!response.ok) {
+      if (debug > 0) console.log('No blacklist file found or unable to load');
+      return;
+    }
+    
+    const text = await response.text();
+    const lines = text.split('\n');
+    
+    blacklist.clear();
+    
+    for (let line of lines) {
+      line = line.trim().toUpperCase();
+      // Skip empty lines and comments
+      if (line && !line.startsWith('#')) {
+        blacklist.add(line);
+        if (debug > 0) console.log('Added to blacklist:', line);
+      }
+    }
+    
+    blacklist_loaded = true;
+    if (debug > 0) console.log('Blacklist loaded with', blacklist.size, 'entries');
+    updateBlacklistStatus();
+    
+  } catch (error) {
+    if (debug > 0) console.error('Error loading blacklist:', error);
+  }
+}
+
+function isCallsignBlacklisted(callsign) {
+  if (!callsign) return false;
+  return blacklist.has(callsign.toUpperCase());
 }
 
 // Compares rows by (ts, cs)
@@ -1621,6 +1694,9 @@ async function update(incremental_update = false) {
     go_button.disabled = true;
 
     let new_data = [];
+
+    // Load blacklist before importing any data
+    await loadBlacklist();
 
     let stage = 1;
     displayProgress(stage++);
