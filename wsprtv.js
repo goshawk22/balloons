@@ -688,6 +688,79 @@ function matchTelemetry(data) {
               // If extraction fails, don't match
             }
           }
+          
+        }
+      } else if (params.tracker == 'u4b') {
+        // If normal slot matching failed for U4B, try to create orphaned telemetry
+        const showOrphanedCheckbox = document.getElementById('show_orphaned_telemetry');
+        if (showOrphanedCheckbox && showOrphanedCheckbox.checked && slot >= 1 && slot <= 4) {
+          // Check if frequency is within +-20Hz of expected channel frequency
+          const expectedFreq = getU4BChannelFrequency(params.ch, params.band);
+          const hasValidFreq = row.rx.some(rx => 
+            Math.abs(rx.freq - expectedFreq) <= 20);
+          
+          if (hasValidFreq) {
+            // Create orphaned telemetry spot
+            let orphaned_spot = { 
+              'slots': new Array(5), 
+              'is_orphaned': true,
+              'ts': row.ts,
+              'grid': null,
+              'lat': null,
+              'lon': null,
+              'altitude': null,
+            };
+            orphaned_spot.slots[slot] = row;
+            
+            // Process basic telemetry (slot 1)
+            if (slot === 1 && row.cs && row.cs.length === 6) {
+              try {
+                const [m, n] = extractU4BQ01Payload(row);
+                if (n % 2) { // Valid telemetry message
+                  if (Math.floor(n / 2) % 2) { // Valid GPS bit
+                    orphaned_spot.speed = (Math.floor(n / 4) % 42) * 2 * 1.852;
+                    let voltage = ((Math.floor(n / 168) + 20) % 40) * 0.05 + 3;
+                    if (params.scaleVoltage) {
+                      voltage -= 2;
+                    }
+                    orphaned_spot.voltage = voltage;
+                    orphaned_spot.temp = (Math.floor(n / 6720) % 90) - 50;
+                    orphaned_spot.altitude = (m % 1068) * 20;
+                  }
+                }
+              } catch (e) {
+                if (debug > 0) console.error('Error processing orphaned basic telemetry:', e);
+              }
+            }
+            
+            // Process extended telemetry (slot 2+)
+            if (slot >= 2 && row.cs && row.cs.length === 6) {
+              try {
+                const [m, n] = extractU4BQ01Payload(row);
+                if (!(n % 2)) { // Extended telemetry message
+                  const v = Math.floor((m * 615600 + n) / 2);
+                  if (!orphaned_spot.raw_et) {
+                    orphaned_spot.raw_et = [];
+                  }
+                  orphaned_spot.raw_et[slot] = v;
+                }
+              } catch (e) {
+                if (debug > 0) console.error('Error processing orphaned extended telemetry:', e);
+              }
+            }
+            
+            // Decode extended telemetry if available and specs are provided
+            if (orphaned_spot.raw_et && params.et_spec) {
+              try {
+                decodeExtendedTelemetry(orphaned_spot);
+              } catch (e) {
+                if (debug > 0) console.error('Error decoding orphaned extended telemetry:', e);
+              }
+            }
+            
+            spots.push(orphaned_spot);
+            if (debug > 0) console.log('Created orphaned telemetry spot for slot', slot);
+          }
         }
       }
     }
@@ -897,6 +970,30 @@ function decodeSpots() {
 // as documented at https://qrp-labs.com/flights/s4.html.
 // Note: voltage calculation is documented incorrectly there.
 function decodeSpot(spot) {
+  // Handle orphaned spots that don't have slot 0
+  if (spot.is_orphaned) {
+    // For orphaned spots, use the timestamp from the spot itself (already set)
+    // and skip grid-based location since orphaned spots don't have location data
+    if (!spot.ts) {
+      // Find the first available slot to get timestamp
+      for (let i = 0; i < spot.slots.length; i++) {
+        if (spot.slots[i]) {
+          spot.ts = spot.slots[i].ts;
+          break;
+        }
+      }
+    }
+    spot.grid = null;
+    spot.lat = null;
+    spot.lon = null;
+    return true; // Orphaned spots are always valid
+  }
+  
+  // Regular spot processing
+  if (!spot.slots[0]) {
+    return false; // Invalid spot - no slot 0
+  }
+  
   spot.ts = spot.slots[0].ts;
   spot.grid = (params.tracker == 'unknown') ?
     spot.slots[0].grid : spot.slots[0].grid.slice(0, 4);
@@ -938,7 +1035,12 @@ function decodeSpot(spot) {
       }
     }
   }
-  [spot.lat, spot.lon] = maidenheadToLatLon(spot.grid);
+  
+  // Calculate lat/lon from grid (skip for orphaned spots)
+  if (spot.grid) {
+    [spot.lat, spot.lon] = maidenheadToLatLon(spot.grid);
+  }
+  
   if (spot.raw_et) {
     decodeExtendedTelemetry(spot);
     // Use enhanced location from extended telemetry if available
@@ -1188,6 +1290,12 @@ function clearTrack() {
   last_marker = null;
 }
 
+// Helper function to check if orphaned telemetry should be shown
+function shouldShowOrphanedTelemetry() {
+  const showOrphanedCheckbox = document.getElementById('show_orphaned_telemetry');
+  return showOrphanedCheckbox && showOrphanedCheckbox.checked;
+}
+
 // Draws the track on the map
 function displayTrack() {
   try {
@@ -1201,6 +1309,11 @@ function displayTrack() {
     // instead.
     for (let i = 0; i < spots.length; i++) {
       let spot = spots[i];
+      
+      // Skip orphaned spots if the checkbox is not checked
+      if (spot.is_orphaned && !shouldShowOrphanedTelemetry()) {
+        continue;
+      }
       if (spot.lat == undefined || spot.lon == undefined) continue;
 
       if (spot.cspeed && spot.cspeed > 300) {
@@ -2162,120 +2275,6 @@ function getExtendedTelemetryAttributes(i) {
   return [label, long_label, units, formatter];
 }
 
-// Create virtual spots for orphaned telemetry data (telemetry without location)
-// Creates orphaned telemetry spots for U4B tracker when telemetry data
-// is received but no corresponding Type 1 (location) message is available
-function createOrphanedTelemetrySpots() {
-  try {
-    // Check if the feature is enabled
-    const showOrphanedCheckbox = document.getElementById('show_orphaned_telemetry');
-    if (!showOrphanedCheckbox || !showOrphanedCheckbox.checked) {
-      return [];
-    }
-    
-    if (params.tracker !== 'u4b' || !data || data.length === 0) {
-      return [];
-    }
-
-    let orphaned_spots = [];
-    let starting_minute = getU4BSlotMinute(0);
-    
-    // Find all data rows that were used in existing spots
-    let used_rows = new Set();
-    spots.forEach(spot => {
-      if (spot.slots) {
-        spot.slots.forEach(slot => {
-          if (slot) used_rows.add(slot);
-        });
-      }
-    });
-
-    // Look for orphaned telemetry data
-    data.forEach(row => {
-      try {
-        if (!used_rows.has(row)) {
-          const slot = (((row.ts.getMinutes() - starting_minute) + 10) % 10) / 2;
-          // Check if frequency is within +-20Hz of expected channel frequency
-          const expectedFreq = getU4BChannelFrequency(params.ch, params.band);
-          const hasValidFreq = row.rx.some(rx => 
-            Math.abs(rx.freq - expectedFreq) <= 20);
-
-          if (slot >= 1 && slot <= 4 && hasValidFreq) { // Valid slot range and frequency
-            // This is orphaned telemetry data, create a virtual spot
-            let orphaned_spot = { 
-              'slots': new Array(5), 
-              'is_orphaned': true,
-              'ts': row.ts,
-              'grid': null,
-              'lat': null,
-              'lon': null,
-              'altitude': null,
-            };
-            orphaned_spot.slots[slot] = row;
-            
-            // Process basic telemetry (slot 1)
-            if (slot === 1 && row.cs && row.cs.length === 6) {
-              try {
-                const [m, n] = extractU4BQ01Payload(row);
-                if (n % 2) { // Valid telemetry message
-                  if (Math.floor(n / 2) % 2) { // Valid GPS bit
-                    orphaned_spot.speed = (Math.floor(n / 4) % 42) * 2 * 1.852;
-                    let voltage = ((Math.floor(n / 168) + 20) % 40) * 0.05 + 3;
-                    if (params.scaleVoltage) {
-                      voltage -= 2;
-                    }
-                    orphaned_spot.voltage = voltage;
-                    orphaned_spot.temp = (Math.floor(n / 6720) % 90) - 50;
-                    orphaned_spot.altitude = (m % 1068) * 20;
-                  }
-                }
-              } catch (e) {
-                if (debug > 0) console.error('Error processing basic telemetry:', e);
-              }
-            }
-            
-            // Process extended telemetry (slot 2+)
-            if (slot >= 2 && row.cs && row.cs.length === 6) {
-              try {
-                const [m, n] = extractU4BQ01Payload(row);
-                if (!(n % 2)) { // Extended telemetry message
-                  const v = Math.floor((m * 615600 + n) / 2);
-                  if (!orphaned_spot.raw_et) {
-                    orphaned_spot.raw_et = [];
-                  }
-                  orphaned_spot.raw_et[slot] = v;
-                }
-              } catch (e) {
-                if (debug > 0) console.error('Error processing extended telemetry:', e);
-              }
-            }
-            
-            orphaned_spots.push(orphaned_spot);
-          }
-        }
-      } catch (e) {
-        if (debug > 0) console.error('Error processing data row:', e);
-      }
-    });
-
-    // Process extended telemetry for orphaned spots
-    orphaned_spots.forEach(spot => {
-      try {
-        if (spot.raw_et && params.et_spec) {
-          decodeExtendedTelemetry(spot);
-        }
-      } catch (e) {
-        if (debug > 0) console.error('Error decoding extended telemetry:', e);
-      }
-    });
-
-    return orphaned_spots;
-  } catch (e) {
-    if (debug > 0) console.error('Error in createOrphanedTelemetrySpots:', e);
-    return [];
-  }
-}
-
 function showDataView() {
   clearDataView();
 
@@ -2296,14 +2295,14 @@ function showDataView() {
   notice.style.marginBottom = '20px';
   div.appendChild(notice);
 
-  // Create combined spots array including orphaned telemetry
-  let orphaned_spots = createOrphanedTelemetrySpots();
-  let combined_spots = orphaned_spots.length > 0 ? [...spots, ...orphaned_spots] : spots;
+  // Filter spots based on orphaned telemetry checkbox
+  let combined_spots = spots.filter(spot => {
+    // Include regular spots, exclude orphaned spots if checkbox is unchecked
+    return !spot.is_orphaned || shouldShowOrphanedTelemetry();
+  });
   
-  // Sort by timestamp if we have orphaned spots
-  if (orphaned_spots.length > 0) {
-    combined_spots.sort((a, b) => a.ts - b.ts);
-  }
+  // Sort by timestamp to ensure orphaned spots are in correct order
+  combined_spots.sort((a, b) => a.ts - b.ts);
 
   let supplementary_data =
   {
@@ -2913,8 +2912,9 @@ function setupPresetEventListeners() {
     // Save preference
     localStorage.setItem('show_orphaned_telemetry', this.checked.toString());
     
-    // Refresh the data view to show/hide orphaned telemetry
+    // Refresh both the map and data view to show/hide orphaned telemetry
     if (spots && spots.length > 0) {
+      displayTrack();
       showDataView();
     }
   });
