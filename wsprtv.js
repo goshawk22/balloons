@@ -496,19 +496,74 @@ async function requestNotificationPermission() {
   return notifications_enabled;
 }
 
-function showNewPacketNotification(new_count, callsign) {
+
+function showNewSpotNotification(new_count, callsign) {
   if (!notifications_enabled || !('Notification' in window)) {
     return;
   }
 
-  const title = `New WSPR Packet${new_count > 1 ? 's' : ''}`;
-  const body = `${new_count} new packet${new_count > 1 ? 's' : ''} received from ${callsign}`;
+  const title = `New WSPR Spot${new_count > 1 ? 's' : ''}`;
+  const body = `${new_count} new spot${new_count > 1 ? 's' : ''} from ${callsign}`;
 
   const notification = new Notification(title, {
     body: body,
     icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjZmZmZmZmIi8+CiAgCiAgPCEtLSBNZXRlb3JvbG9naWNhbCBiYWxsb29uIChtYWluIHNwaGVyZSkgLS0+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxMiIgcj0iOCIgZmlsbD0iI2Y4ZjlmYSIgc3Ryb2tlPSIjMmQzNzQ4IiBzdHJva2Utd2lkdGg9IjEuNSIvPgogIAogIDwhLS0gQmFsbG9vbiBoaWdobGlnaHQgLS0+CiAgPGVsbGlwc2UgY3g9IjE0IiBjeT0iOSIgcng9IjIiIHJ5PSIzIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjciLz4KICAKICA8IS0tIENvbm5lY3Rpb24gbGluZSBmcm9tIGJhbGxvb24gdG8gcGF5bG9hZCAtLT4KICA8bGluZSB4MT0iMTYiIHkxPSIyMCIgeDI9IjE2IiB5Mj0iMjUiIHN0cm9rZT0iIzJkMzc0OCIgc3Ryb2tlLXdpZHRoPSIxIi8+CiAgCiAgPCEtLSBQYXlsb2FkL2luc3RydW1lbnQgcGFja2FnZSAtLT4KICA8cmVjdCB4PSIxNCIgeT0iMjUiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiIGZpbGw9IiMyZDM3NDgiIHJ4PSIwLjUiLz4KICAKICA8IS0tIFNtYWxsIGFudGVubmEgb24gcGF5bG9hZCAtLT4KICA8bGluZSB4MT0iMTYiIHkxPSIyNSIgeDI9IjE2IiB5Mj0iMjMiIHN0cm9rZT0iIzJkMzc0OCIgc3Ryb2tlLXdpZHRoPSIwLjUiLz4KPC9zdmc+Cg==',
     badge: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjZmZmZmZmIi8+CiAgCiAgPCEtLSBNZXRlb3JvbG9naWNhbCBiYWxsb29uIChtYWluIHNwaGVyZSkgLS0+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxMiIgcj0iOCIgZmlsbD0iI2Y4ZjlmYSIgc3Ryb2tlPSIjMmQzNzQ4IiBzdHJva2Utd2lkdGg9IjEuNSIvPgogIAogIDwhLS0gQmFsbG9vbiBoaWdobGlnaHQgLS0+CiAgPGVsbGlwc2UgY3g9IjE0IiBjeT0iOSIgcng9IjIiIHJ5PSIzIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjciLz4KICAKICA8IS0tIENvbm5lY3Rpb24gbGluZSBmcm9tIGJhbGxvb24gdG8gcGF5bG9hZCAtLT4KICA8bGluZSB4MT0iMTYiIHkxPSIyMCIgeDI9IjE2IiB5Mj0iMjUiIHN0cm9rZT0iIzJkMzc0OCIgc3Ryb2tlLXdpZHRoPSIxIi8+CiAgCiAgPCEtLSBQYXlsb2FkL2luc3RydW1lbnQgcGFja2FnZSAtLT4KICA8cmVjdCB4PSIxNCIgeT0iMjUiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiIGZpbGw9IiMyZDM3NDgiIHJ4PSIwLjUiLz4KICAKICA8IS0tIFNtYWxsIGFudGVubmEgb24gcGF5bG9hZCAtLT4KICA8bGluZSB4MT0iMTYiIHkxPSIyNSIgeDI9IjE2IiB5Mj0iMjMiIHN0cm9rZT0iIzJkMzc0OCIgc3Ryb2tlLXdpZHRoPSIwLjUiLz4KPC9zdmc+Cg==',
-    tag: 'wspr-packet',
+    tag: 'wspr-spot',
+    requireInteraction: false,
+    silent: false
+  });
+
+  // Auto-close after 4 seconds
+  setTimeout(() => {
+    notification.close();
+  }, 4000);
+
+  // Click handler to focus the window
+  notification.onclick = function () {
+    window.focus();
+    notification.close();
+  };
+}
+
+// Analyze what new data was received compared to previous spots
+function analyzeNewData(old_spots, new_spots) {
+
+  // Count new spots
+  if (new_spots.length > old_spots.length) {
+    return true;
+  }
+
+  // Also check for new telemetry in last spot (additional slots added)
+  const old_spot = old_spots[old_spots.length - 1];
+  const new_spot = new_spots[new_spots.length - 1];
+    
+  // Check if new telemetry slots were added to existing spots
+  for (let slot_idx = 1; slot_idx < new_spot.slots.length; slot_idx++) {
+    const old_slot = old_spot.slots[slot_idx];
+    const new_slot = new_spot.slots[slot_idx];
+      
+    if (!old_slot && new_slot) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function showNewDataNotification(callsign) {
+  if (!notifications_enabled || !('Notification' in window)) {
+    return;
+  }
+
+  const title = 'New WSPR Data';
+  const body = `New data received from ${callsign}`;
+
+  const notification = new Notification(title, {
+    body: body,
+    icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjZmZmZmZmIi8+CiAgCiAgPCEtLSBNZXRlb3JvbG9naWNhbCBiYWxsb29uIChtYWluIHNwaGVyZSkgLS0+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxMiIgcj0iOCIgZmlsbD0iI2Y4ZjlmYSIgc3Ryb2tlPSIjMmQzNzQ4IiBzdHJva2Utd2lkdGg9IjEuNSIvPgogIAogIDwhLS0gQmFsbG9vbiBoaWdobGlnaHQgLS0+CiAgPGVsbGlwc2UgY3g9IjE0IiBjeT0iOSIgcng9IjIiIHJ5PSIzIiBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjciLz4KICAKICA8IS0tIENvbm5lY3Rpb24gbGluZSBmcm9tIGJhbGxvb24gdG8gcGF5bG9hZCAtLT4KICA8bGluZSB4MT0iMTYiIHkxPSIyMCIgeDI9IjE2IiB5Mj0iMjUiIHN0cm9rZT0iIzJkMzc0OCIgc3Ryb2tlLXdpZHRoPSIxIi8+CiAgCiAgPCEtLSBQYXlsb2FkL2luc3RydW1lbnQgcGFja2FnZSAtLT4KICA8cmVjdCB4PSIxNCIgeT0iMjUiIHdpZHRoPSI0IiBoZWlnaHQ9IjMiIGZpbGw9IiMyZDM3NDgiIHJ4PSIwLjUiLz4KICA8IS0tIFNtYWxsIGFudGVubmEgb24gcGF5bG9hZCAtLT4KICA8bGluZSB4MT0iMTYiIHkxPSIyNSIgeDI9IjE2IiB5Mj0iMjMiIHN0cm9rZT0iIzJkMzc0OCIgc3Ryb2tlLXdpZHRoPSIwLjUiLz4KPC9zdmc+Cg==',
+    badge: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8IS0tIEJhY2tncm91bmQgLS0+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiBmaWxsPSIjZmZmZmZmIi8+CiAgCiAgPCEtLSBNZXRlb3JvbG9naWNhbCBiYWxsb29uIChtYWluIHNwaGVyZSkgLS0+CiAgPGNpcmNsZSBjeD0iMTYiIGN5PSIxMiIgcj0iOCIgZmlsbD0iI2Y4ZjlmYSIgc3Ryb2tlPSIjMmQzNzQ4IiBzdHJva2Utd2lkdGg9IjEuNUiLz4KICA8IS0tIEJhbGxvb24gaGlnaGxpZ2h0IC0tPgogIDxlbGxpcHNlIGN4PSIxNCIgY3k9IjkiIHJ4PSIyIiByeT0iMyIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC43Ii8+CiAgCiAgPCEtLSBDb25uZWN0aW9uIGxpbmUgZnJvbSBiYWxsb29uIHRvIHBheWxvYWQgLS0+CiAgPGxpbmUgeDE9IjE2IiB5MT0iMjAiIHgyPSIxNiIgeTI9IjI1IiBzdHJva2U9IiMyZDM3NDgiIHN0cm9rZS13aWR0aD0iMSIvPgogIAogIDwhLS0gUGF5bG9hZC9pbnN0cnVtZW50IHBhY2thZ2UgLS0+CiAgPHJlY3QgeD0iMTQiIHk9IjI1IiB3aWR0aD0iNCIgaGVpZ2h0PSIzIiBmaWxsPSIjMmQzNzQ4IiByeD0iMC41Ii8+CiAgCiAgPCEtLSBTbWFsbCBhbnRlbm5hIG9uIHBheWxvYWQgLS0+CiAgPGxpbmUgeDE9IjE2IiB5MT0iMjUiIHgyPSIxNiIgeTI9IjIzIiBzdHJva2U9IiMyZDM3NDgiIHN0cm9rZS13aWR0aD0iMC41Ii8+Cjwvc3ZnPgo=',
+    tag: 'wspr-data',
     requireInteraction: false,
     silent: false
   });
@@ -1849,8 +1904,24 @@ async function update(incremental_update = false) {
       const merge_result = mergeData(data, new_data);
       data = merge_result.data;
 
-      // Show notification if new packets were received
-      if (merge_result.new_count > 0) {
+
+
+      if (debug > 3) console.log(data);
+    }
+
+    // Track spots before processing for notifications
+    const old_spots = spots ? [...spots] : [];
+    
+    spots = matchTelemetry(data);
+    if (debug > 2) console.log(spots);
+
+    decodeSpots();
+    
+    // Analyze what's new and show notification
+    if (incremental_update) {
+      const new_data_bool = analyzeNewData(old_spots, spots);
+
+      if (new_data_bool) {
         // Check if notifications are enabled via checkbox
         const notificationsCheckbox = document.getElementById('notifications_enabled');
         if (notificationsCheckbox && notificationsCheckbox.checked) {
@@ -1862,17 +1933,10 @@ async function update(incremental_update = false) {
 
           // Show notification
           const callsign = params.cs || 'tracker';
-          showNewPacketNotification(merge_result.new_count, callsign);
+          showNewDataNotification(callsign);
         }
       }
-
-      if (debug > 3) console.log(data);
     }
-
-    spots = matchTelemetry(data);
-    if (debug > 2) console.log(spots);
-
-    decodeSpots();
 
     // Always display track since both map and data are visible
     displayTrack();
