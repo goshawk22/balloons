@@ -437,6 +437,14 @@ function importWSPRLiveData(data) {
   
   for (let i = 0; i < data.length; i++) {
     let row = data[i];
+    
+    // Discard spots with grid locator AA00
+    if (row[2] === 'AA00') {
+      if (debug > 0) console.log('Filtered out spot with grid locator AA00');
+      rowsFiltered++;
+      continue;
+    }
+    
     const originalRxCount = row[4].length;
     
     // Filter out blacklisted receivers
@@ -467,8 +475,8 @@ function importWSPRLiveData(data) {
     }
   }
   
-  if (totalReceiversFiltered > 0) {
-    console.log(`Data level filtering: removed ${totalReceiversFiltered} receivers, ${rowsFiltered} complete rows`);
+  if (totalReceiversFiltered > 0 || rowsFiltered > 0) {
+    console.log(`Data level filtering: removed ${totalReceiversFiltered} receivers, ${rowsFiltered} complete rows (blacklisted receivers + AA00 grid locators)`);
   }
   
   return filteredData;
