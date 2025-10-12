@@ -2793,7 +2793,7 @@ function Run() {
     {
       renderer: L.canvas({ tolerance: click_tolerance }),
       minZoom: 2,
-      maxBounds: [[-85, -180], [85, 180]],
+      maxBounds: [[-85, -270], [85, 270]],
       worldCopyJump: false
     });
 
