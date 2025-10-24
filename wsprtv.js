@@ -66,6 +66,11 @@ let last_data_view_scroll_pos = 0;
 
 let is_mobile;  // running on a mobile device
 
+// Map presentation mode
+// When true, we render a continuous, unwrapped map by carrying longitudes
+// across the antimeridian and only showing the latest map section.
+let continuous_map = true;
+
 // Notification support
 let notifications_enabled = false;
 let notification_permission_requested = false;
@@ -73,6 +78,10 @@ let notification_permission_requested = false;
 // Blacklist support
 let blacklist = new Set();
 let blacklist_loaded = false;
+
+// Day/night overlay (terminator)
+let terminator;
+let terminatorLongitudeRange = 360;  // current applied range in degrees
 
 // WSPR band info. For each band, the value is
 // [U4B starting minute offset, WSPR Live band id].
@@ -1288,6 +1297,41 @@ function getRXStats(spot) {
   return [Object.keys(cs).length, max_rx_dist, max_snr];
 }
 
+// Compute unwrapped longitudes and section indices for spots to enable
+// continuous rendering across the antimeridian. Each time the track crosses
+// the +/-180° meridian, we increment/decrement the longitude offset by 360°.
+// We also compute a section index for each spot as floor((ulon + 180) / 360).
+function computeUnwrappedSections() {
+  try {
+    let prevRawLon = null;
+    let offset = 0;
+
+    for (let i = 0; i < spots.length; i++) {
+      const spot = spots[i];
+      // Only process spots with valid coordinates
+      if (spot.lat == undefined || spot.lon == undefined) continue;
+
+      const raw = spot.lon;
+      if (prevRawLon != null) {
+        const diff = raw - prevRawLon;
+        if (diff < -180) {
+          // crossed from + to - side, advance eastward
+          offset += 360;
+        } else if (diff > 180) {
+          // crossed from - to + side, move westward
+          offset -= 360;
+        }
+      }
+      const ulon = raw + offset;
+      spot.ulon = ulon;
+      spot.section = Math.floor((ulon + 180) / 360);
+      prevRawLon = raw;
+    }
+  } catch (e) {
+    if (debug > 0) console.error('Error in computeUnwrappedSections:', e);
+  }
+}
+
 // Units / localization
 
 // Metric / imperial, with second param being the display resolution.
@@ -1366,6 +1410,45 @@ function displayTrack() {
     marker_group = L.featureGroup();
     segment_group = L.featureGroup();
 
+    // Prepare unwrapped coordinates
+    if (continuous_map) {
+      computeUnwrappedSections();
+    }
+
+    // Dynamically extend the sun overlay (terminator) to at least 180°
+    // beyond the furthest displayed spot longitude.
+    if (continuous_map && spots && spots.length > 0) {
+      let minUl = Infinity, maxUl = -Infinity;
+      for (let i = 0; i < spots.length; i++) {
+        const s = spots[i];
+        if (s && s.lat != undefined && s.lon != undefined && s.ulon != undefined) {
+          if (s.ulon < minUl) minUl = s.ulon;
+          if (s.ulon > maxUl) maxUl = s.ulon;
+        }
+      }
+      if (minUl !== Infinity && maxUl !== -Infinity) {
+        const targetLeft = minUl - 180;
+        const targetRight = maxUl + 180;
+        const halfRangeNeeded = Math.max(Math.abs(targetLeft), Math.abs(targetRight), 180);
+        // Round up to nearest 360° multiple and make full width symmetric around 0
+        const fullRange = 2 * Math.ceil(halfRangeNeeded / 360) * 360;
+        if (fullRange > 0 && fullRange !== terminatorLongitudeRange) {
+          try {
+            if (terminator) {
+              map.removeLayer(terminator);
+            }
+            terminatorLongitudeRange = fullRange;
+            terminator = L.terminator({
+              opacity: 0, fillOpacity: 0.3, interactive: false,
+              longitudeRange: terminatorLongitudeRange
+            }).addTo(map);
+          } catch (e) {
+            if (debug > 0) console.error('Failed to update terminator range:', e);
+          }
+        }
+      }
+    }
+
     // To reduce clutter, we only show grid4 markers if they are more than
     // 200km and/or 2 hours from adjacent grid6 markers. In other words, we only
     // display grid4 markers if there are no good adjacent grid6 markers to show
@@ -1391,9 +1474,9 @@ function displayTrack() {
       // Grid4 spot
       if (!isGridFilteringEnabled() || params.tracker == 'unknown' || !last_marker ||
         (spot.ts - last_marker.spot.ts > 2 * 3600 * 1000) ||
-        (last_marker.getLatLng().distanceTo(
+        (L.latLng(last_marker.spot.lat, last_marker.spot.lon).distanceTo(
           [spot.lat, spot.lon]) > 200000)) {
-        marker = L.circleMarker([spot.lat, spot.lon],
+        marker = L.circleMarker([spot.lat, (continuous_map && spot.ulon !== undefined) ? spot.ulon : spot.lon],
           {
             radius: 4, color: 'black', fillColor: 'white', weight: 1,
             stroke: true, fillOpacity: 1
@@ -1404,14 +1487,14 @@ function displayTrack() {
       if (isGridFilteringEnabled() && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 6 &&
         (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
-        (last_marker.getLatLng().distanceTo(
+        (L.latLng(last_marker.spot.lat, last_marker.spot.lon).distanceTo(
           [spot.lat, spot.lon]) < 200000)) {
         // Remove last grid4 marker
         if (debug > 0) console.log('Removing grid4 marker due to grid6 spot');
         marker_group.removeLayer(last_marker);
         markers.pop();
       }
-      marker = L.circleMarker([spot.lat, spot.lon],
+      marker = L.circleMarker([spot.lat, (continuous_map && spot.ulon !== undefined) ? spot.ulon : spot.lon],
         {
           radius: 5, color: 'black', fillColor: '#add8e6', weight: 1,
           stroke: true, fillOpacity: 1
@@ -1421,14 +1504,14 @@ function displayTrack() {
       if (isGridFilteringEnabled() && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 8 &&
         (spot.ts - last_marker.spot.ts < 2 * 3600 * 1000) &&
-        (last_marker.getLatLng().distanceTo(
+        (L.latLng(last_marker.spot.lat, last_marker.spot.lon).distanceTo(
           [spot.lat, spot.lon]) < 200000)) {
         // Remove last lower-precision marker
         if (debug > 0) console.log('Removing lower precision marker due to grid8 spot');
         marker_group.removeLayer(last_marker);
         markers.pop();
       }
-      marker = L.circleMarker([spot.lat, spot.lon],
+      marker = L.circleMarker([spot.lat, (continuous_map && spot.ulon !== undefined) ? spot.ulon : spot.lon],
         {
           radius: 7, color: 'black', fillColor: '#87ceeb', weight: 1,
           stroke: true, fillOpacity: 1
@@ -1520,39 +1603,16 @@ function displayTrack() {
   displayNextUpdateCountdown();
 
   // Add segments between markers
-  // Handle segments across map edges
   for (let i = 1; i < markers.length; i++) {
     if (params.tracker == 'unknown') {
       // Do not draw lines between markers for 'unknown' trackers
       continue;
     }
-    let lat1 = markers[i - 1].getLatLng().lat;
-    let lon1 = markers[i - 1].getLatLng().lng;
-    let lat2 = markers[i].getLatLng().lat;
-    let lon2 = markers[i].getLatLng().lng;
-
-    if (lon1 < lon2) {
-      // Reorder so that lon1 is east of lon2 when crossing the antimeridian
-      [[lat1, lon1], [lat2, lon2]] = [[lat2, lon2], [lat1, lon1]];
-    }
-    if (lon1 - lon2 > 180) {
-      // The segment crosses the antimeridian (lon=180 line). Leaflet doesn't
-      // display these correctly. Instead, we will display 2 segments -- from
-      // marker1 to antimeridian and from antimeridian to marker2. For this to
-      // work, the latitude at which the segment crosses antimeridian needs to
-      // be calculated.
-      let lat180 = lat1 + (lat2 - lat1) * (180 - lon1) /
-        (lon2 - lon1 + 360);
-      L.polyline([[lat1, lon1], [lat180, 180]],
-        { color: '#00cc00' }).addTo(segment_group);
-      L.polyline([[lat2, lon2], [lat180, -180]],
-        { color: '#00cc00' }).addTo(segment_group);
-    } else {
-      // Regular segment, no antimeridian crossing
-      L.polyline(
-        [markers[i - 1].getLatLng(), markers[i].getLatLng()],
-        { color: '#00cc00' }).addTo(segment_group);
-    }
+    // In continuous map mode we only draw within a single section, so
+    // antimeridian splitting is not needed. Draw direct segments.
+    L.polyline(
+      [markers[i - 1].getLatLng(), markers[i].getLatLng()],
+      { color: '#00cc00' }).addTo(segment_group);
   }
 
   segment_group.addTo(map);
@@ -2789,13 +2849,17 @@ function Run() {
   document.getElementById('map').style.display = 'block';
 
   // Initialize the map
-  map = L.map('map',
-    {
-      renderer: L.canvas({ tolerance: click_tolerance }),
-      minZoom: 2,
-      maxBounds: [[-85, -270], [85, 270]],
-      worldCopyJump: false
-    });
+  // Initialize map options, removing bounds in continuous mode to allow
+  // panning to the right into the next world copy
+  let mapOptions = {
+    renderer: L.canvas({ tolerance: click_tolerance }),
+    minZoom: 2,
+    worldCopyJump: false
+  };
+  if (!continuous_map) {
+    mapOptions.maxBounds = [[-85, -270], [85, 270]];
+  }
+  map = L.map('map', mapOptions);
 
   // Use local English-label tiles for lower levels
   L.tileLayer(
@@ -2822,20 +2886,25 @@ function Run() {
   map.setView([init_lat, init_lon], init_zoom_level);
 
   // Add day / night visualization and the scale indicator
-  let terminator = L.terminator(
+  // Initialize the day/night overlay
+  terminatorLongitudeRange = continuous_map ? 720 : 360;
+  terminator = L.terminator(
     {
       opacity: 0, fillOpacity: 0.3, interactive: false,
-      longitudeRange: 360
+      longitudeRange: terminatorLongitudeRange
     }).addTo(map);
   L.control.scale().addTo(map);
 
-  // Draw the antimeridian
-  L.polyline([[90, 180], [-90, 180]],
-    { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
-    .addTo(map).bringToBack();
-  L.polyline([[90, -180], [-90, -180]],
-    { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
-    .addTo(map).bringToBack();
+  // Remove antimeridian dashed lines in continuous mode
+  if (!continuous_map) {
+    // Draw the antimeridian
+    L.polyline([[90, 180], [-90, 180]],
+      { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
+      .addTo(map).bringToBack();
+    L.polyline([[90, -180], [-90, -180]],
+      { color: 'gray', weight: 2, dashArray: '8,5', opacity: 0.4 })
+      .addTo(map).bringToBack();
+  }
 
 
   // Draw the equator
@@ -2885,7 +2954,7 @@ function Run() {
 
   // Update the terminator (day / night overlay) periodically
   setInterval(() => {
-    terminator.setTime(new Date());
+    if (terminator) terminator.setTime(new Date());
   }, 120 * 1000);
 }
 
