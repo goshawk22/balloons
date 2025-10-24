@@ -115,29 +115,11 @@ function adjustReceiverCoords(tx_lat_lng, rx_lat_lng) {
   const tx_lng = tx_lat_lng.lng;
   const rx_lng = rx_lat_lng.lng;
 
-  // Calculate the difference in longitude
-  const lng_diff = Math.abs(tx_lng - rx_lng);
-
-  // If the difference is greater than 180°, we should go the other way
-  if (lng_diff > 180) {
-    let adjusted_rx_lng = rx_lng;
-
-    // If transmitter is on the right side (positive longitude near +180)
-    // and receiver is on the left side (negative longitude near -180)
-    if (tx_lng > 0 && rx_lng < 0) {
-      adjusted_rx_lng = rx_lng + 360;
-    }
-    // If transmitter is on the left side (negative longitude near -180)
-    // and receiver is on the right side (positive longitude near +180)
-    else if (tx_lng < 0 && rx_lng > 0) {
-      adjusted_rx_lng = rx_lng - 360;
-    }
-
-    return L.latLng(rx_lat_lng.lat, adjusted_rx_lng);
-  }
-
-  // No adjustment needed
-  return rx_lat_lng;
+  // Shift receiver by multiples of 360° to be nearest to the transmitter's
+  // displayed longitude (which may be unwrapped in continuous mode).
+  const n = Math.round((tx_lng - rx_lng) / 360);
+  const adjusted_rx_lng = rx_lng + 360 * n;
+  return L.latLng(rx_lat_lng.lat, adjusted_rx_lng);
 }
 
 // Parses a UTC timestamp string like '2025-07-15 12:00:00' to a Date() object
@@ -1670,7 +1652,8 @@ function onMarkerClick(e) {
   spot.slots[0].rx.forEach(r => {
     let rx_lat_lon = maidenheadToLatLon(r.grid);
 
-    // Adjust receiver coordinates to avoid long lines across the map
+    // Adjust receiver coordinates to the nearest world copy relative to the
+    // displayed spot position
     let adjusted_rx_lat_lon = adjustReceiverCoords(marker.getLatLng(), L.latLng(rx_lat_lon));
 
     let rx_marker = L.circleMarker(
@@ -1683,7 +1666,9 @@ function onMarkerClick(e) {
     rx_marker.on('click', function (e) {
       L.DomEvent.stopPropagation(e);
     });
-    let dist = marker.getLatLng().distanceTo(rx_lat_lon);
+  // Compute true Earth distance using original (wrapped) TX coords to avoid
+  // inflated distances caused by unwrapped display longitude
+  let dist = L.latLng(marker.spot.lat, marker.spot.lon).distanceTo(rx_lat_lon);
     rx_marker.bindTooltip(
       `${r.cs} ${formatDistance(dist)} ${r.snr} dBm`,
       { direction: 'top', opacity: 0.8 });
