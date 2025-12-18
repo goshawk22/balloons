@@ -1,5 +1,19 @@
 [
   {
+    "name": "Pico 11",
+    "callsign": "M7GAQ",
+    "channel": "265E",
+    "band": "17m",
+    "start_date": "2025-12-18",
+    "end_date": "",
+    "et_dec": "et0:0,s:2_100:0:1,100:0:1,13:0:10,25:0:5,41:0:1",
+    "et_labels": "Loc,Loc2,Uptime,FixTime,Sats",
+    "et_llabels": ",,,,Number_Of_Satellites",
+    "et_units": "Count,Count,Minutes,Seconds,Count",
+    "et_res": "",
+    "scaleVoltage": true
+  },
+  {
     "name": "Pico 10",
     "callsign": "M7GAQ",
     "channel": "195E",

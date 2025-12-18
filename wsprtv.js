@@ -825,7 +825,14 @@ function matchTelemetry(data) {
   }
 }
 
-// Convert a Maidenhead grid reference of arbitrary previcision to lat/long.
+// Convert a Maidenhead grid reference of arbitrary precision to lat/long.
+// Supports 2, 4, 6, 8, and 10-character grids.
+// Format: AA00BB1122 where:
+//   AA = field letters (18x18)
+//   00 = square numbers (10x10)
+//   BB = subsquare letters (24x24)
+//   11 = extended numbers (10x10)
+//   22 = sub-extended numbers (10x10)
 function maidenheadToLatLon(grid) {
   // Make sure we are in upper case so our maths works. Case is arbitrary for Maidenhead references
   grid = grid.toUpperCase();
@@ -845,14 +852,20 @@ function maidenheadToLatLon(grid) {
 
   // Iterate through blocks (two-character sections)
   for (let block = 0; block * 2 < len; block += 1) {
-    if (block % 2 === 0) {
+    // Determine block type based on position
+    // Block 0 (1-2): letters, Block 1 (3-4): numbers, Block 2 (5-6): letters,
+    // Block 3 (7-8): numbers, Block 4 (9-10): numbers
+    let charPos = block * 2;
+    let isLetterBlock = (block === 0 || block === 2);
+    
+    if (isLetterBlock) {
       // Letters in this block
-      lonCellNo = grid.charCodeAt(block * 2) - 'A'.charCodeAt(0);
-      latCellNo = grid.charCodeAt(block * 2 + 1) - 'A'.charCodeAt(0);
+      lonCellNo = grid.charCodeAt(charPos) - 'A'.charCodeAt(0);
+      latCellNo = grid.charCodeAt(charPos + 1) - 'A'.charCodeAt(0);
     } else {
       // Numbers in this block
-      lonCellNo = parseInt(grid.charAt(block * 2));
-      latCellNo = parseInt(grid.charAt(block * 2 + 1));
+      lonCellNo = parseInt(grid.charAt(charPos));
+      latCellNo = parseInt(grid.charAt(charPos + 1));
     }
 
     // Aggregate the angles
@@ -863,12 +876,16 @@ function maidenheadToLatLon(grid) {
     // move the position into the middle of the cell rather than its south-west corner.
     if (block * 2 < len - 2) {
       // Still have more work to do, so reduce the cell size
-      if (block % 2 === 0) {
+      if (isLetterBlock) {
         // Just dealt with letters, next block will be numbers so cells will be 1/10 the current size
         latCellSize = latCellSize / 10.0;
         lonCellSize = lonCellSize / 10.0;
+      } else if (block === 3) {
+        // Just dealt with numbers (extended), next block will also be numbers so cells will be 1/10 the current size
+        latCellSize = latCellSize / 10.0;
+        lonCellSize = lonCellSize / 10.0;
       } else {
-        // Just dealt with numbers, next block will be letters so cells will be 1/24 the current size
+        // Just dealt with numbers at block 1, next block will be letters so cells will be 1/24 the current size
         latCellSize = latCellSize / 24.0;
         lonCellSize = lonCellSize / 24.0;
       }
@@ -915,34 +932,41 @@ function extractU4BQ01Payload(p) {
 }
 
 // Decode enhanced grid square from extended telemetry location value
-function decodeEnhancedGridFromET(locValue, baseGrid) {
-  if (locValue === undefined || locValue === null || !baseGrid) return null;
+function decodeEnhancedGridFromET(locValue, loc2Value, baseGrid) {
+  if (!baseGrid) return null;
 
-  // The Loc field contains a numeric value representing the 7th and 8th characters
-  // of an 8-character grid square (grid78)
+  // locValue: numeric value representing 7th and 8th characters (grid 7_8, numbers 0-99)
+  // loc2Value: numeric value representing 9th and 10th characters (grid 9_10, numbers 0-99)
+  // Both are in the range 0-99 (10*10 combinations for each)
 
-  let value = Math.floor(locValue);
-  if (value < 0 || value >= 100) return null; // 10*10 = 100 possible combinations (0-9 each)
-
-  // Convert numeric value to 7th and 8th grid characters
-  // Grid characters 7&8 are numbers 0-9 representing extended square precision
-  let char8 = value % 10;  // 8th character (latitude extended square)
-  let char7 = Math.floor(value / 10) % 10;  // 7th character (longitude extended square)
-
-  // Convert to number characters
-  let grid7 = char7.toString();  // 0-9
-  let grid8 = char8.toString();  // 0-9
-
-  // Build 8-character grid square by adding the 7th and 8th characters
-  // to the existing 6-character grid
-  // Only add grid78 if we already have a proper 6-character grid (grid56 present)
-  if (baseGrid.length >= 6) {
-    return baseGrid + grid7 + grid8;
+  let grid = baseGrid;
+  
+  // Add 7th and 8th characters if we have a valid 6-character grid
+  if (locValue !== undefined && locValue !== null && baseGrid.length >= 6) {
+    let value = Math.floor(locValue);
+    if (value >= 0 && value < 100) {
+      // Convert numeric value to 7th and 8th grid characters (numbers)
+      // Grid characters 7&8 are numbers 0-9 representing extended square precision
+      let char8 = value % 10;  // 8th character (latitude extended square)
+      let char7 = Math.floor(value / 10) % 10;  // 7th character (longitude extended square)
+      grid += char7.toString() + char8.toString();
+    }
   }
-
-  // Don't add grid78 if we only have a 4-character grid
-  // (grid56 characters haven't been added yet)
-  return null;
+  
+  // Add 9th and 10th characters if we have Loc2 and already added Loc (8-char grid)
+  if (loc2Value !== undefined && loc2Value !== null && grid.length >= 8) {
+    let value = Math.floor(loc2Value);
+    if (value >= 0 && value < 100) {
+      // Convert numeric value to 9th and 10th grid characters (numbers)
+      // Grid characters 9&10 are numbers 0-9 representing sub-extended square precision
+      let char10 = value % 10;  // 10th character (latitude sub-extended)
+      let char9 = Math.floor(value / 10) % 10;  // 9th character (longitude sub-extended)
+      grid += char9.toString() + char10.toString();
+    }
+  }
+  
+  // Return the original grid if no enhancement was possible
+  return grid.length > baseGrid.length ? grid : null;
 }
 
 function processU4BSlot1Message(spot) {
@@ -1098,12 +1122,22 @@ function decodeSpot(spot) {
   if (spot.raw_et) {
     decodeExtendedTelemetry(spot);
     // Use enhanced location from extended telemetry if available
-    // The "Loc" field is at index 1 in the extended telemetry data
-    if (spot.et && spot.et[1] !== undefined) {
-      const enhancedGrid = decodeEnhancedGridFromET(spot.et[1], spot.grid);
-      if (enhancedGrid) {
-        spot.grid = enhancedGrid;
-        [spot.lat, spot.lon] = maidenheadToLatLon(enhancedGrid);
+    // Find indices of Loc and Loc2 in the et_spec labels
+    if (spot.et && params.et_spec && params.et_spec.labels) {
+      const locIndex = params.et_spec.labels.indexOf('Loc');
+      const loc2Index = params.et_spec.labels.indexOf('Loc2');
+      
+      if (locIndex >= 0 || loc2Index >= 0) {
+        const locValue = locIndex >= 0 ? spot.et[locIndex] : undefined;
+        const loc2Value = loc2Index >= 0 ? spot.et[loc2Index] : undefined;
+        
+        if (locValue !== undefined || loc2Value !== undefined) {
+          const enhancedGrid = decodeEnhancedGridFromET(locValue, loc2Value, spot.grid);
+          if (enhancedGrid) {
+            spot.grid = enhancedGrid;
+            [spot.lat, spot.lon] = maidenheadToLatLon(enhancedGrid);
+          }
+        }
       }
     }
   }
@@ -1481,7 +1515,7 @@ function displayTrack() {
           radius: 5, color: 'black', fillColor: '#add8e6', weight: 1,
           stroke: true, fillOpacity: 1
         });
-    } else if (spot.grid.length == 8) {
+    } else if ((spot.grid.length == 8) || (spot.grid.length == 10)) {
       // Grid8 spot - only display if we already have a grid6 marker
       if (isGridFilteringEnabled() && params.tracker != 'unknown' &&
         last_marker && last_marker.spot.grid.length < 8 &&
@@ -2463,8 +2497,8 @@ function showDataView() {
       const [label, long_label, units, formatter] =
         getExtendedTelemetryAttributes(i);
 
-      // Don't show a graph for the "Loc" field
-      const shouldShowGraph = label !== 'Loc';
+      // Don't show a graph for the "Loc" and "Loc2" fields
+      const shouldShowGraph = label !== 'Loc' && label !== 'Loc2';
 
       data_fields.push([`et${i}`,
       {
