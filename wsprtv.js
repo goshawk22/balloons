@@ -2253,7 +2253,7 @@ function computeDerivedData(spots) {
           (spot.altitude - last_altitude_spot.altitude) * 60000 /
           ((spot.ts - last_altitude_spot.ts) || 1);
       }
-      let currentSats = spot.et && spot.et[3] !== undefined ? spot.et[3] : null;
+      let currentSats = spot.et && spot.et[4] !== undefined ? spot.et[4] : null;
       if (params.tracker != 'unknown' && spot.grid && spot.grid.length >= 6 && currentSats !== 0 && 
           spot.lat !== undefined && spot.lat !== null && 
           spot.lon !== undefined && spot.lon !== null) {
@@ -2263,7 +2263,7 @@ function computeDerivedData(spots) {
           let previousGrid = last_good_spot.grid;
 
           // If previous was 6-char and current is 8-char, truncate current to 6-char for calculation
-          if (previousGrid.length === 6 && (currentGrid.length === 8 || currentGrid.length === 10)) {
+          if (previousGrid.length === 6 && currentGrid.length >= 8) {
             currentGrid = currentGrid.substring(0, 6);
             // Recalculate lat/lon using 6-char grid for speed calculation
             let [lat6, lon6] = maidenheadToLatLon(currentGrid);
@@ -2274,7 +2274,7 @@ function computeDerivedData(spots) {
             var currentLon = spot.lon;
           }
 
-          if ((previousGrid.length === 8 || previousGrid.length === 10) && currentGrid.length === 6) {
+          if (previousGrid.length >= 8 && currentGrid.length === 6) {
             // If previous was 8-char and current is 6-char, truncate previous to 6-char for calculation
             previousGrid = previousGrid.substring(0, 6);
             // Recalculate lat/lon using 6-char grid for speed calculation
