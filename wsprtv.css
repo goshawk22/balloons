@@ -42,6 +42,10 @@ html, body {
   width: 50px;
 }
 
+#predict_button {
+  min-width: 80px;
+}
+
 #search_line input[type="checkbox"] {
   margin-right: 5px;
 }

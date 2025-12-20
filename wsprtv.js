@@ -36,6 +36,8 @@ let segment_group;
 let last_marker;  // last marker in the displayed track
 let selected_marker;  // currently selected (clicked) marker
 let marker_with_receivers;  // marker that currently has receivers displayed
+let prediction_layer;  // prediction overlay
+let prediction_request_inflight = false;
 
 let data = [];  // raw wspr.live telemetry data
 let spots = [];  // merged / annotated telemetry data
@@ -1402,6 +1404,7 @@ function clearTrack() {
     marker_group = null;
     segment_group = null;
   }
+  clearPredictionLayer();
   document.getElementById('spot_info').style.display = 'none';
   document.getElementById('synopsis').innerHTML = '';
   document.getElementById('update_countdown').innerHTML = '';
@@ -1411,6 +1414,20 @@ function clearTrack() {
   }
   selected_marker = null;
   last_marker = null;
+  updatePredictionButtonState();
+}
+
+function clearPredictionLayer() {
+  if (prediction_layer && map) {
+    map.removeLayer(prediction_layer);
+  }
+  prediction_layer = null;
+}
+
+function updatePredictionButtonState() {
+  const btn = document.getElementById('predict_button');
+  if (!btn) return;
+  btn.disabled = !last_marker || prediction_request_inflight;
 }
 
 // Helper function to check if orphaned telemetry should be shown
@@ -1642,6 +1659,7 @@ function displayTrack() {
   marker_group.on('mouseover', onMarkerMouseover);
   marker_group.on('mouseout', onMarkerMouseout);
   marker_group.on('click', onMarkerClick);
+  updatePredictionButtonState();
   } catch (error) {
     console.error('Error in displayTrack:', error);
     throw error;
@@ -1748,7 +1766,6 @@ function onMapClick(e) {
   if (!isNaN(hrs_sunrise)) {
     aux_info.innerHTML += `/ ${hrs_sunrise} / ${hrs_sunset} hr`;
   }
-
   if (selected_marker) {
     // Display distance to the previously clicked marker
     let dist = e.latlng.distanceTo(selected_marker.getLatLng());
@@ -1759,6 +1776,136 @@ function onMapClick(e) {
     selected_marker = null;
   }
   aux_info.style.display = 'block';
+}
+
+async function predictFromLastMarker() {
+  if (prediction_request_inflight) return;
+  if (!last_marker || !last_marker.spot || last_marker.spot.lat == undefined ||
+    last_marker.spot.lon == undefined) {
+    alert('Load a track first to request a prediction.');
+    updatePredictionButtonState();
+    return;
+  }
+
+  const btn = document.getElementById('predict_button');
+  prediction_request_inflight = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Predicting...';
+  }
+
+  try {
+    const spot = last_marker.spot;
+    const launch_ts = (spot.ts instanceof Date) ? spot.ts : new Date(spot.ts);
+    const float_altitude = Math.max(0, Math.round(spot.altitude || 11000));
+    // Use a fixed 3-day duration regardless of any end date
+    const duration_days = 3;
+    const stop_ts = new Date(launch_ts.getTime() + duration_days * 24 * 3600 * 1000);
+
+    const request_params = new URLSearchParams({
+      profile: 'float_profile',
+      pred_type: 'single',
+      launch_datetime: launch_ts.toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      launch_latitude: spot.lat,
+      launch_longitude: spot.lon,
+      launch_altitude: '0',
+      ascent_rate: '0',
+      float_altitude: float_altitude.toString(),
+      float_duration: duration_days.toString(),
+      stop_datetime: stop_ts.toISOString().replace(/\.\d{3}Z$/, 'Z')
+    });
+
+    let url = `https://predict.adamlawson.uk/tawhiri/api/v1?${request_params.toString()}`;
+    let payload;
+    try {
+      payload = await fetchPrediction(url);
+    } catch (err) {
+      if (/float_altitude/i.test(err.message)) {
+        // Retry once with a conservative default altitude if API rejects the value
+        request_params.set('float_altitude', '11000');
+        url = `https://predict.adamlawson.uk/tawhiri/api/v1?${request_params.toString()}`;
+        payload = await fetchPrediction(url);
+      } else {
+        throw err;
+      }
+    }
+    const trajectory = payload?.prediction?.[0]?.trajectory;
+    if (!trajectory || !trajectory.length) {
+      throw new Error('No prediction data returned');
+    }
+    renderPredictionTrajectory(trajectory);
+  } catch (error) {
+    console.error('Prediction error:', error);
+    alert('Prediction failed: ' + error.message);
+  } finally {
+    prediction_request_inflight = false;
+    if (btn) {
+      btn.textContent = 'Predict';
+    }
+    updatePredictionButtonState();
+  }
+}
+
+async function fetchPrediction(url) {
+  try {
+    const direct = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!direct.ok) {
+      const body = await direct.text();
+      throw new Error(`HTTP ${direct.status}${body ? ` – ${body.slice(0, 120)}` : ''}`);
+    }
+    return await direct.json();
+  } catch (err) {
+    // Only retry via proxy for network/CORS errors (TypeError)
+    if (!(err instanceof TypeError)) {
+      throw err;
+    }
+
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    const proxied = await fetch(proxyUrl, { headers: { 'Accept': 'application/json' } });
+    if (!proxied.ok) {
+      const body = await proxied.text();
+      throw new Error(`HTTP ${proxied.status} (via proxy)${body ? ` – ${body.slice(0, 120)}` : ''}`);
+    }
+    return await proxied.json();
+  }
+}
+
+function renderPredictionTrajectory(trajectory) {
+  if (!map) return;
+  clearPredictionLayer();
+
+  const anchor_lng = last_marker ? last_marker.getLatLng().lng : null;
+  const coords = trajectory.map(p => {
+    let lng = p.longitude;
+    if (continuous_map && anchor_lng != null) {
+      lng = p.longitude + 360 * Math.round((anchor_lng - p.longitude) / 360);
+    }
+    return [p.latitude, lng];
+  });
+
+  const start_ts = new Date(trajectory[0].datetime);
+  const end_ts = new Date(trajectory[trajectory.length - 1].datetime);
+
+  prediction_layer = L.featureGroup();
+  L.polyline(coords, {
+    color: '#ff6600', weight: 3, opacity: 0.85, dashArray: '7,4'
+  }).addTo(prediction_layer);
+
+  const start_marker = L.circleMarker(coords[0], {
+    radius: 6, color: '#cc5500', fillColor: '#fff1e0',
+    weight: 1, fillOpacity: 1
+  }).bindTooltip(`Prediction start<br>${start_ts.toUTCString()}`, { opacity: 0.85 });
+
+  const end_marker = L.circleMarker(coords[coords.length - 1], {
+    radius: 6, color: '#cc5500', fillColor: '#ffcc80',
+    weight: 1, fillOpacity: 1
+  }).bindTooltip(`Prediction end<br>${end_ts.toUTCString()}`, { opacity: 0.85 });
+
+  start_marker.addTo(prediction_layer);
+  end_marker.addTo(prediction_layer);
+
+  prediction_layer.addTo(map);
+  prediction_layer.bringToFront();
 }
 
 function hideMarkerRXInfo(marker) {
@@ -2950,6 +3097,9 @@ function Run() {
   // Handle clicks on the "Go" button
   document.getElementById('go_button').addEventListener(
     'click', processSubmission);
+  document.getElementById('predict_button').addEventListener(
+    'click', predictFromLastMarker);
+  updatePredictionButtonState();
 
   // Note: Show/close data button event listeners removed as data is now 
   // displayed inline automatically
