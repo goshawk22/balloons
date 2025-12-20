@@ -1886,6 +1886,27 @@ function renderPredictionTrajectory(trajectory) {
   const start_ts = new Date(trajectory[0].datetime);
   const end_ts = new Date(trajectory[trajectory.length - 1].datetime);
 
+  // Mark expected wake-up points when sun elevation crosses civil dawn
+  const wake_markers = [];
+  const wake_threshold = 0; // degrees
+  for (let i = 1; i < trajectory.length; i++) {
+    const prev = trajectory[i - 1];
+    const curr = trajectory[i];
+    const prev_elev = getSunElevation(new Date(prev.datetime), prev.latitude, prev.longitude);
+    const curr_elev = getSunElevation(new Date(curr.datetime), curr.latitude, curr.longitude);
+    if (prev_elev < wake_threshold && curr_elev >= wake_threshold) {
+      const wake_ts = new Date(curr.datetime);
+      const wake_marker = L.circleMarker(coords[i], {
+        radius: 5,
+        color: '#2f9e44',
+        fillColor: '#c0f2c7',
+        weight: 1,
+        fillOpacity: 1
+      }).bindTooltip(`Expected wake-up<br>${wake_ts.toUTCString()}`, { opacity: 0.9 });
+      wake_markers.push(wake_marker);
+    }
+  }
+
   prediction_layer = L.featureGroup();
   L.polyline(coords, {
     color: '#ff6600', weight: 3, opacity: 0.85, dashArray: '7,4'
@@ -1903,6 +1924,7 @@ function renderPredictionTrajectory(trajectory) {
 
   start_marker.addTo(prediction_layer);
   end_marker.addTo(prediction_layer);
+  wake_markers.forEach(m => m.addTo(prediction_layer));
 
   prediction_layer.addTo(map);
   prediction_layer.bringToFront();
