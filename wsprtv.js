@@ -1807,7 +1807,7 @@ async function predictFromLastMarker() {
       pred_type: 'single',
       launch_datetime: launch_ts.toISOString().replace(/\.\d{3}Z$/, 'Z'),
       launch_latitude: spot.lat,
-      launch_longitude: spot.lon,
+      launch_longitude: normalizeLongitude360(spot.lon),
       launch_altitude: '0',
       ascent_rate: '0',
       float_altitude: float_altitude.toString(),
@@ -1868,6 +1868,11 @@ async function fetchPrediction(url) {
     }
     return await proxied.json();
   }
+}
+
+function normalizeLongitude360(lng) {
+  const wrapped = lng % 360;
+  return wrapped < 0 ? wrapped + 360 : wrapped;
 }
 
 function renderPredictionTrajectory(trajectory) {
