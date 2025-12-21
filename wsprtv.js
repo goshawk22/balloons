@@ -55,6 +55,7 @@ let et_llabels_param;
 let et_units_param;
 let et_res_param;
 let scaleVoltage_param;
+let wakeup_solar_angle_param;
 
 let last_update_ts;
 let next_update_ts;
@@ -288,12 +289,19 @@ function parseParams() {
   }
 
   // Successful validation
-  return {
+  const result = {
     'cs': cs, 'ch': ch, 'band': band, 'tracker': tracker,
     'start_date': start_date, 'end_date': end_date,
     'fetch_et': fetch_et, 'units': units,
     'detail': detail, 'et_spec': et_spec, 'scaleVoltage': scaleVoltage_param
   };
+  
+  // Only include wakeup_solar_angle if it's explicitly configured
+  if (wakeup_solar_angle_param !== undefined && wakeup_solar_angle_param !== null) {
+    result.wakeup_solar_angle = wakeup_solar_angle_param;
+  }
+  
+  return result;
 }
 
 // Helper function to check if grid filtering is enabled
@@ -1892,24 +1900,26 @@ function renderPredictionTrajectory(trajectory) {
   const start_ts = new Date(trajectory[0].datetime);
   const end_ts = new Date(trajectory[trajectory.length - 1].datetime);
 
-  // Mark expected wake-up points when sun elevation crosses civil dawn
+  // Mark expected wake-up points when sun elevation crosses threshold (if configured)
   const wake_markers = [];
-  const wake_threshold = 0; // degrees
-  for (let i = 1; i < trajectory.length; i++) {
-    const prev = trajectory[i - 1];
-    const curr = trajectory[i];
-    const prev_elev = getSunElevation(new Date(prev.datetime), prev.latitude, prev.longitude);
-    const curr_elev = getSunElevation(new Date(curr.datetime), curr.latitude, curr.longitude);
-    if (prev_elev < wake_threshold && curr_elev >= wake_threshold) {
-      const wake_ts = new Date(curr.datetime);
-      const wake_marker = L.circleMarker(coords[i], {
-        radius: 5,
-        color: '#2f9e44',
-        fillColor: '#c0f2c7',
-        weight: 1,
-        fillOpacity: 1
-      }).bindTooltip(`Expected wake-up<br>${wake_ts.toUTCString()}`, { opacity: 0.9 });
-      wake_markers.push(wake_marker);
+  if (params.wakeup_solar_angle !== undefined && params.wakeup_solar_angle !== null) {
+    const wake_threshold = params.wakeup_solar_angle; // degrees
+    for (let i = 1; i < trajectory.length; i++) {
+      const prev = trajectory[i - 1];
+      const curr = trajectory[i];
+      const prev_elev = getSunElevation(new Date(prev.datetime), prev.latitude, prev.longitude);
+      const curr_elev = getSunElevation(new Date(curr.datetime), curr.latitude, curr.longitude);
+      if (prev_elev < wake_threshold && curr_elev >= wake_threshold) {
+        const wake_ts = new Date(curr.datetime);
+        const wake_marker = L.circleMarker(coords[i], {
+          radius: 5,
+          color: '#2f9e44',
+          fillColor: '#c0f2c7',
+          weight: 1,
+          fillOpacity: 1
+        }).bindTooltip(`Expected wake-up<br>${wake_ts.toUTCString()}`, { opacity: 0.9 });
+        wake_markers.push(wake_marker);
+      }
     }
   }
 
@@ -3299,6 +3309,7 @@ function setupPresetEventListeners() {
       et_units_param = '';
       et_res_param = '';
       scaleVoltage_param = false;
+      wakeup_solar_angle_param = undefined;
       return;
     }
 
@@ -3326,6 +3337,7 @@ function setupPresetEventListeners() {
       et_units_param = preset.et_units || '';
       et_res_param = preset.et_res || '';
       scaleVoltage_param = preset.scaleVoltage || false;
+      wakeup_solar_angle_param = preset.wakeup_solar_angle;
     }
   });
 }

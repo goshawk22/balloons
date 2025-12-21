@@ -11,7 +11,8 @@
     "et_llabels": ",,,,Number_Of_Satellites",
     "et_units": ",, min, s,",
     "et_res": "",
-    "scaleVoltage": true
+    "scaleVoltage": true,
+    "wakeup_solar_angle": 0
   },
   {
     "name": "Pico 10",
@@ -25,7 +26,8 @@
     "et_llabels": "Speed,,,Number_Of_Satellites",
     "et_units": " kmph,, min",
     "et_res": "",
-    "scaleVoltage": false
+    "scaleVoltage": false,
+    "wakeup_solar_angle": 13
   },
   {
     "name": "Pico 9",
