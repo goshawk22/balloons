@@ -1798,8 +1798,9 @@ async function predictFromLastMarker() {
     const spot = last_marker.spot;
     const launch_ts = (spot.ts instanceof Date) ? spot.ts : new Date(spot.ts);
     const float_altitude = Math.max(0, Math.round(spot.altitude || 11000));
-    // Use a fixed 3-day duration regardless of any end date
-    const duration_days = 3;
+    // Get prediction length from input field
+    const prediction_length_input = document.getElementById('prediction_length');
+    const duration_days = Math.max(1, parseInt(prediction_length_input.value) || 3);
     const stop_ts = new Date(launch_ts.getTime() + duration_days * 24 * 3600 * 1000);
 
     const request_params = new URLSearchParams({
