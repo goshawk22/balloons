@@ -1888,14 +1888,31 @@ function renderPredictionTrajectory(trajectory) {
   if (!map) return;
   clearPredictionLayer();
 
+  // Unwrap prediction longitudes to ensure continuity across the antimeridian,
+  // matching the tracer plot behavior. Anchor the first point near the last
+  // displayed marker longitude, then adjust stepwise on crossings.
   const anchor_lng = last_marker ? last_marker.getLatLng().lng : null;
-  const coords = trajectory.map(p => {
-    let lng = p.longitude;
-    if (continuous_map && anchor_lng != null) {
-      lng = p.longitude + 360 * Math.round((anchor_lng - p.longitude) / 360);
+  const coords = [];
+  let offset = 0;
+  let prevRaw = null;
+  for (let i = 0; i < trajectory.length; i++) {
+    const p = trajectory[i];
+    const raw = p.longitude;
+    if (i === 0 && continuous_map && anchor_lng != null) {
+      // Anchor initial point close to the last displayed marker longitude
+      offset = 360 * Math.round((anchor_lng - raw) / 360);
+    } else if (continuous_map && prevRaw != null) {
+      const diff = raw - prevRaw;
+      if (diff < -180) {
+        offset += 360; // crossed +180 → -180, advance eastward
+      } else if (diff > 180) {
+        offset -= 360; // crossed -180 → +180, move westward
+      }
     }
-    return [p.latitude, lng];
-  });
+    const lng = continuous_map ? (raw + offset) : raw;
+    coords.push([p.latitude, lng]);
+    prevRaw = raw;
+  }
 
   const start_ts = new Date(trajectory[0].datetime);
   const end_ts = new Date(trajectory[trajectory.length - 1].datetime);
