@@ -12,7 +12,7 @@
     "et_units": ",, min, s,",
     "et_res": "",
     "scaleVoltage": true,
-    "wakeup_solar_angle": 0
+    "wakeup_solar_angle": 1
   },
   {
     "name": "Pico 10",
