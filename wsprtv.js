@@ -1330,6 +1330,7 @@ function getRXStats(spot) {
 function computeUnwrappedSections() {
   try {
     let prevRawLon = null;
+    let prevRawTime = null;
     let offset = 0;
 
     for (let i = 0; i < spots.length; i++) {
@@ -1338,13 +1339,15 @@ function computeUnwrappedSections() {
       if (spot.lat == undefined || spot.lon == undefined) continue;
 
       const raw = spot.lon;
+      const raw_time = spot.timestamp;
       if (prevRawLon != null) {
         const diff = raw - prevRawLon;
+        const diff_time = raw_time - prevRawTime;
         if (diff < -180) {
           // crossed from + to - side, advance eastward
           offset += 360;
-        } else if (diff > 180) {
-          // crossed from - to + side, move westward
+        } else if (diff > 180 && diff_time < 604800) {
+          // crossed from - to + side, move westward (only if less than 7 days gap)
           offset -= 360;
         }
       }
@@ -1352,6 +1355,7 @@ function computeUnwrappedSections() {
       spot.ulon = ulon;
       spot.section = Math.floor((ulon + 180) / 360);
       prevRawLon = raw;
+      prevRawTime = raw_time;
     }
   } catch (e) {
     if (debug > 0) console.error('Error in computeUnwrappedSections:', e);
