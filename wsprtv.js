@@ -1812,7 +1812,7 @@ async function predictFromLastMarker() {
     const float_altitude = Math.max(0, Math.round(spot.altitude || 11000));
     // Get prediction length from input field
     const prediction_length_input = document.getElementById('prediction_length');
-    const duration_days = Math.max(1, parseInt(prediction_length_input.value) || 3);
+    const duration_days = Math.max(0.1, parseFloat(prediction_length_input.value) || 3);
     const stop_ts = new Date(launch_ts.getTime() + duration_days * 24 * 3600 * 1000);
 
     const request_params = new URLSearchParams({
