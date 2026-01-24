@@ -1507,7 +1507,7 @@ function displayTrack() {
       }
       if (spot.lat == undefined || spot.lon == undefined) continue;
 
-      if (spot.cspeed && spot.cspeed > 300) {
+      if (spot.cspeed && spot.cspeed > 400) {
         // Spot is too far from previous marker to be feasible (over 300 km/h
         // speed needed to connect). Ignore.
         if (debug > 0) console.log('Filtering out an impossible spot');
@@ -1596,6 +1596,25 @@ function displayTrack() {
       }
     }
 
+    // Get the most recent CSpeed from derived data (only for 8-figure grid calculations)
+    let last_cspeed = null;
+    let derived_data = computeDerivedData(spots);
+    if (derived_data['cspeed'] && spots) {
+      // Only show CSpeed if calculated from 8-figure grids
+      for (let i = derived_data['cspeed'].length - 1; i >= 0; i--) {
+        if (derived_data['cspeed'][i] !== undefined && spots[i]) {
+          const spot = spots[i];
+          const prevSpot = i > 0 ? spots[i - 1] : null;
+          // Check if this CSpeed was calculated from 8-figure grids
+          if (spot.grid && spot.grid.length >= 8 && 
+              prevSpot && prevSpot.grid && prevSpot.grid.length >= 8) {
+            last_cspeed = derived_data['cspeed'][i];
+            break;
+          }
+        }
+      }
+    }
+
     synopsis.innerHTML = `Duration: <b>${duration}</b>`;
     if (params.tracker != 'unknown') {
       // Distance is a clickable link to switch units
@@ -1613,7 +1632,10 @@ function displayTrack() {
       synopsis.innerHTML += ' • Last altitude: <b>' +
         formatAltitude(telemetry_spot.altitude) + '</b>';
     }
-    if ('speed' in telemetry_spot) {
+    if (last_cspeed !== null) {
+      synopsis.innerHTML +=
+        ` • Last Speed: <b>${formatSpeed(last_cspeed)}</b>`;
+    } else if ('speed' in telemetry_spot) {
       synopsis.innerHTML +=
         ` • Last speed: <b>${formatSpeed(telemetry_spot.speed)}</b>`;
     }
@@ -2509,7 +2531,7 @@ function computeDerivedData(spots) {
           // More lenient acceptance criteria for 8-character grids due to higher precision
           let max_uncertainty = effectiveGridLength >= 8 ? 20 : 50; // km/h
 
-          if (cspeed <= 350 &&
+          if (cspeed <= 400 &&
             (max_cspeed - min_cspeed <= max_uncertainty ||
               (cspeed >= 0 && cspeed <= 300))) {
             derived_data['cspeed'][i] = cspeed;
