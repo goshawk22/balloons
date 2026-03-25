@@ -1157,12 +1157,20 @@ function decodeSpot(spot) {
 function decodeExtendedTelemetry(spot) {
   if (!params.et_spec || !spot.raw_et) return null;
   let et = [];
-  let index = 0;  // index within data
   let ts_seq = spot.ts.getUTCHours() * 30 + spot.ts.getUTCMinutes() / 2;
+  const decoders = params.et_spec.decoders;
+
+  // Map each decoder to stable ET indices so labels/units align consistently.
+  const decoder_offsets = [];
+  let total_extractors = 0;
+  for (const [_, extractors] of decoders) {
+    decoder_offsets.push(total_extractors);
+    total_extractors += extractors.length;
+  }
+
   for (let i = 0; i < spot.raw_et.length; i++) {
     const raw_et = spot.raw_et[i];
     if (raw_et == undefined) continue;
-    const decoders = params.et_spec.decoders;
     for (let j = 0; j < decoders.length; j++) {
       const [filters, extractors] = decoders[j];
       let matched = true;
@@ -1187,14 +1195,13 @@ function decodeExtendedTelemetry(spot) {
       }
       if (matched) {
         // Extract the values
-        for (const [divisor, modulus, offset, slope] of extractors) {
-          et[index++] = offset +
+        const base_index = decoder_offsets[j];
+        for (let k = 0; k < extractors.length; k++) {
+          const [divisor, modulus, offset, slope] = extractors[k];
+          et[base_index + k] = offset +
             (Math.trunc(raw_et / divisor) % modulus) * slope;
         }
         break;  // do not try other decoders
-      } else {
-        // Skip over the missing indices
-        index += extractors.length;
       }
     }
   }

@@ -1,5 +1,20 @@
 [
   {
+    "name": "Pico 12",
+    "callsign": "M7GAQ",
+    "channel": "520E2",
+    "band": "10m",
+    "start_date": "2026-03-25",
+    "end_date": "",
+    "et_dec": "et0:0,s:2_100:0:1,100:0:1,13:0:10,25:0:5,41:0:1~et0:0,s:3_3801:15000:25,1501:-5000:10,101:-10:0.5",
+    "et_labels": "Loc,Loc2,Uptime,FixTime,Sats,Pressure,PressureDiff,TemperatureDiff",
+    "et_llabels": ",,,,Number_Of_Satellites,Pressure,Pressure_Difference,Temperature_Difference",
+    "et_units": ",, min, s,, Pa, Pa, degC",
+    "et_res": ",,,,,,,1",
+    "scaleVoltage": true,
+    "wakeup_solar_angle": 1
+  },
+  {
     "name": "Pico 11",
     "callsign": "M7GAQ",
     "channel": "265E",
