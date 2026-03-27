@@ -35,7 +35,7 @@
     "channel": "265E",
     "band": "17m",
     "start_date": "2025-12-19",
-    "end_date": "",
+    "end_date": "2026-02-15",
     "et_dec": "et0:0,s:2_100:0:1,100:0:1,13:0:10,25:0:5,41:0:1",
     "et_labels": "Loc,Loc2,Uptime,FixTime,Sats",
     "et_llabels": ",,,,Number_Of_Satellites",
