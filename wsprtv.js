@@ -1332,8 +1332,9 @@ function getRXStats(spot) {
 
 // Compute unwrapped longitudes and section indices for spots to enable
 // continuous rendering across the antimeridian. Each time the track crosses
-// the +/-180° meridian, we increment/decrement the longitude offset by 360°.
-// We also compute a section index for each spot as floor((ulon + 180) / 360).
+// the +/-180° meridian, we increment the longitude offset by 360°.
+// A westward return crossing snaps back onto the previous map copy so a brief
+// excursion into the next world wrap does not leave the track stranded there.
 function computeUnwrappedSections() {
   try {
     let prevRawLon = null;
@@ -1346,21 +1347,20 @@ function computeUnwrappedSections() {
       if (spot.lat == undefined || spot.lon == undefined) continue;
 
       const raw = spot.lon;
-      const raw_time = spot.timestamp;
+      const raw_time = spot.ts;
       if (prevRawLon != null) {
         const diff = raw - prevRawLon;
         const diff_time = raw_time - prevRawTime;
         if (diff < -180) {
           // crossed from + to - side, advance eastward
           offset += 360;
-        } else if (diff > 180 && diff_time < 604800) {
-          // crossed from - to + side, move westward (only if less than 7 days gap)
+        } else if (diff > 180 && diff_time < 7 * 24 * 3600 * 1000) {
+          // crossed from - to + side, snap back westward
           offset -= 360;
         }
       }
       const ulon = raw + offset;
       spot.ulon = ulon;
-      spot.section = Math.floor((ulon + 180) / 360);
       prevRawLon = raw;
       prevRawTime = raw_time;
     }
