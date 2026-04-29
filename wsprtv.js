@@ -1902,7 +1902,7 @@ async function fetchPrediction(url) {
       throw err;
     }
 
-    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(url);
+    const proxyUrl = encodeURIComponent(url);
     const proxied = await fetch(proxyUrl, { headers: { 'Accept': 'application/json' } });
     if (!proxied.ok) {
       const body = await proxied.text();
